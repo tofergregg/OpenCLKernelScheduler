@@ -220,9 +220,6 @@ $(OBJDIR)/%.cpp.o : $(SRCDIR)%.cpp $(INCDIR)%.h
 
 $(TARGET): makedirectories $(OBJS) Makefile
 	$(VERBOSE)$(LINKLINE)
-	@cp data/matrix4.txt $(TARGETDIR)
-	@cp data/matrix16.txt $(TARGETDIR)
-	@cp data/matrix1024.txt $(TARGETDIR)
 	@cp src/scheduler.cl $(TARGETDIR)
 
 makedirectories:

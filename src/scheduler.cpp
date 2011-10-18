@@ -74,12 +74,13 @@ int main(int argc, char *argv[]) {
  */
 void runScheduler(cl_context context, int timing){    
     // 1. set up kernels
-    cl_kernel scheduler_kernel,setArg_kernel;
+    cl_kernel scheduler_kernel;
     cl_int status=0;
     cl_program scheduler_program;
-    cl_event writeEvent,kernelEvent,readEvent;
-    float writeTime=0,readTime=0,kernelTime=0;
-    float writeMB=0,readMB=0;
+    cl_event writeEvent,kernelEvent;
+    float writeTime=0, kernelTime=0;
+    //float readTime=0;
+    //float writeMB=0,readMB=0;
     
     size_t globalWorksize = 128;
     size_t localWorksize = 32;
@@ -222,8 +223,9 @@ float eventTime(cl_event event,cl_command_queue command_queue){
 int parseCommandline(int argc, char *argv[], char* filename,
                      int *q, int *t, int *p, int *d){
     int i;
-    if (argc < 2) return 1; // error
-    strncpy(filename,argv[1],100);
+    //if (argc < 2) return 1; // error
+    //strncpy(filename,argv[1],100);
+    filename = (char *)"";
     char flag;
     
     for(i=1;i<argc;i++) {
