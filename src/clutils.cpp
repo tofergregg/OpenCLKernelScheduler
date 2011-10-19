@@ -658,12 +658,13 @@ Compile Opencl source file into a cl_program. The cl_program will be made into a
 */
 cl_program cl_CompileProgram(char * kernelPath, char * compileoptions, bool verbosebuild )
 	{
+	    //printf("Compile options:%s\n",compileoptions);
 		cl_int status;
 		FILE *fp;
 		char *source;
 		long int size;
 
-		//printf("Only Compiler Function: Kernel file is: %s\n", kernelPath);
+		printf("Only Compiler Function: Kernel file is: %s\n", kernelPath);
 
 		fp = fopen(kernelPath, "rb");
 		if(!fp) {

@@ -74,12 +74,12 @@ int main(int argc, char *argv[]) {
  */
 void runScheduler(cl_context context, int timing){    
     // 1. set up kernels
-    cl_kernel scheduler_kernel;
+    cl_kernel scheduler_kernel, setArg_kernel;
     cl_int status=0;
     cl_program scheduler_program;
-    cl_event writeEvent,kernelEvent;
+    cl_event writeEvent,kernelEvent,readEvent;
     float writeTime=0, kernelTime=0;
-    //float readTime=0;
+    float readTime=0;
     //float writeMB=0,readMB=0;
     
     size_t globalWorksize = 128;
@@ -87,16 +87,22 @@ void runScheduler(cl_context context, int timing){
     
     
     scheduler_program = cl_CompileProgram(
-        (char *)"scheduler.cl",NULL);
+        (char *)"scheduler.cl",(char *)"-I /Users/Tofer/Dropbox/UVA_Dropbox/ISCA2012/KernelScheduler/bin/darwin/release");
    
     scheduler_kernel = clCreateKernel(
         scheduler_program, "scheduler", &status);
-    status = cl_errChk(status, (char *)"Error Creating Scheduler kernel");
+    status = cl_errChk(status, (char *)"Error Creating scheduler kernel");
     if(status)exit(1);
+    
+//     setArg_kernel = clCreateKernel(
+//         scheduler_program, "setArg", &status);
+//     status = cl_errChk(status, (char *)"Error Creating setArg kernel");
+//     if(status)exit(1);
     
     // 2. set up memory on device and send ipts data to device
 
     cl_mem taskGPU,lockGPU,spoofingGPU;
+    cl_mem logInfoGPU;
 
     cl_int error=0;
 
@@ -108,16 +114,21 @@ void runScheduler(cl_context context, int timing){
 
     spoofingGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
         sizeof(SpoofedId) * globalWorksize * localWorksize, NULL, &error);
+        
+    logInfoGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
+        sizeof(unsigned int) * globalWorksize * localWorksize * 2, NULL, &error);    
 
     cl_command_queue command_queue = cl_getCommandQueue();
     
     Task task;
     task.workgroupsLeft = 10;
-    task.xDim = 2;
-    task.yDim = 5;
+    task.xDim = 1;
+    task.yDim = 1;
     task.xThreads = 13;
     task.yThreads = 7;
     task.kernelId = 0;
+    
+    
     
     error = clEnqueueWriteBuffer(command_queue,
                taskGPU,
@@ -158,6 +169,7 @@ void runScheduler(cl_context context, int timing){
         argchk |= clSetKernelArg(scheduler_kernel, 3, sizeof(cl_mem), (void *)&lockGPU);
         argchk |= clSetKernelArg(scheduler_kernel, 4, sizeof(unsigned int)*localWorksize, NULL);
         argchk |= clSetKernelArg(scheduler_kernel, 5, sizeof(cl_mem), (void *)&spoofingGPU);
+        argchk |= clSetKernelArg(scheduler_kernel, 6, sizeof(cl_mem), (void *)&logInfoGPU);
     
         cl_errChk(argchk,"ERROR in Setting Scheduler kernel args");
         
@@ -173,21 +185,30 @@ void runScheduler(cl_context context, int timing){
         }
         clReleaseEvent(kernelEvent);
 		
-    // 5. transfer data off of device
-  //   error = clEnqueueReadBuffer(command_queue,
-//         a_dev,
-//         1, // change to 0 for nonblocking write
-//         0, // offset
-//         sizeof(float) * size * size,
-//         a,
-//         0,
-//         NULL,
-//         &readEvent);
-// 
-//     cl_errChk(error,"ERROR with clEnqueueReadBuffer");
-//     if (timing) readTime+=eventTime(readEvent,command_queue);
-//     clReleaseEvent(readEvent);
-    
+//5. transfer data off of device
+    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*localWorksize*2);
+    error = clEnqueueReadBuffer(command_queue,
+        logInfoGPU,
+        1, // change to 0 for nonblocking write
+        0, // offset
+        sizeof(unsigned int) * globalWorksize * localWorksize,
+        logInfoCPU,
+        0,
+        NULL,
+        &readEvent);
+
+    cl_errChk(error,"ERROR with clEnqueueReadBuffer");
+    if (timing) readTime+=eventTime(readEvent,command_queue);
+    clReleaseEvent(readEvent);
+
+// print log info
+    for(unsigned int i=0;i<globalWorksize*localWorksize;i++) {
+        unsigned int x,y;
+        x = logInfoCPU[i*2];
+        y = logInfoCPU[i*2+1];
+        if (x != 0 && y != 0)
+          printf("index:%d, x:%d, y:%d\n",i,x,y);
+    }
 
 //     if (timing) {
 //         printf("Matrix Size\tWrite(s) [size]\t\tKernel(s)\tRead(s)  [size]\t\tTotal(s)\n");

@@ -2,23 +2,6 @@
 #   define MAXTASKS 32
 #endif
 
-#define get_global_id(num)   spoofing[get_global_id(0)].globalId[ num ]
-#define get_local_id(num)    spoofing[get_global_id(0)].localId[ num ]
-#define get_global_size(num) spoofing[get_global_id(0)].globalSize[ num ]
-#define get_local_size(num)  spoofing[get_global_id(0)].localSize[ num ]
-#define get_group_id(num)    spoofing[get_global_id(0)].groupId[ num ]
-#define get_num_groups(num) spoofing[get_global_id(0)].numGroups[ num ]
-// #include "kernel1"
-// #include "kernel2"
-#undef get_global_id
-#undef get_local_id
-#undef get_global_size
-#undef get_local_size
-#undef get_group_id
-#undef get_num_groups
-
-#define MAXARGS 5
-
 typedef struct
     {
         unsigned int globalId[3];
@@ -28,6 +11,23 @@ typedef struct
         unsigned int groupId[3];
         unsigned int numGroups[3];
     } SpoofedId;
+    
+#define get_global_id(num)   spoofing[get_global_id(0)].globalId[ num ]
+#define get_local_id(num)    spoofing[get_global_id(0)].localId[ num ]
+#define get_global_size(num) spoofing[get_global_id(0)].globalSize[ num ]
+#define get_local_size(num)  spoofing[get_global_id(0)].localSize[ num ]
+#define get_group_id(num)    spoofing[get_global_id(0)].groupId[ num ]
+#define get_num_groups(num)  spoofing[get_global_id(0)].numGroups[ num ]
+#include "kernel1.cl"
+// #include "kernel2"
+#undef get_global_id
+#undef get_local_id
+#undef get_global_size
+#undef get_local_size
+#undef get_group_id
+#undef get_num_groups
+
+#define MAXARGS 5
 
 typedef struct
     {
@@ -55,7 +55,8 @@ __kernel void scheduler(__global Task *queue,
                         unsigned int numberOfTasksToExecute,
                         __global unsigned int *lock,
                         __local unsigned int *sharedMem,
-                        __global SpoofedId *spoofing) {
+                        __global SpoofedId *spoofing,
+                        __global unsigned int *logInfo) {
         
     size_t globalId = get_global_id(0);
     size_t workgroups = get_num_groups(0);
@@ -103,15 +104,7 @@ __kernel void scheduler(__global Task *queue,
         spoofing[globalId].numGroups[1] = next->task->yDim;
         spoofing[globalId].numGroups[2] = 1;
         
-        switch (next->task->kernelId) {
-            case 0:
-                // run kernel 0
-            break;
-            
-            case 1:
-                // run kernel 1
-            break;
-        }
+        #include "switchKernel.cl"
     }
 }
 
@@ -152,6 +145,7 @@ unsigned int getWork(__global Task *queue,
 
 __kernel void setArg() {
 }
+
 
 
 
