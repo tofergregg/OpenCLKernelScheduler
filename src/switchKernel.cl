@@ -1,9 +1,8 @@
 void dispatch(__global SpoofedId *spoofing,
-              __local WorkItem *next,
-              __global uint *logInfo) {
+              __local WorkItem *next) {
     switch(next->task->kernelId) {
         case 0:
-            kernel1(logInfo,spoofing);
+            kernel1(next->task->kernelArgs[0].globalUintArg,spoofing);
             break;
     }
 }

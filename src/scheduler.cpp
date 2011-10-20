@@ -104,10 +104,10 @@ void runScheduler(cl_context context, int timing){
     status = cl_errChk(status, (char *)"Error Creating scheduler kernel");
     if(status)exit(1);
     
-//     setArg_kernel = clCreateKernel(
-//         scheduler_program, "setArg", &status);
-//     status = cl_errChk(status, (char *)"Error Creating setArg kernel");
-//     if(status)exit(1);
+    setArg_kernel = clCreateKernel(
+        scheduler_program, "setArgGlobalUint", &status);
+    status = cl_errChk(status, (char *)"Error Creating setArg kernel");
+    if(status)exit(1);
     
     // 2. set up memory on device and send ipts data to device
 
@@ -140,7 +140,7 @@ void runScheduler(cl_context context, int timing){
     
     unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*localWorksize*2);
     for (unsigned int i=0;i<globalWorksize*localWorksize*2;i++)
-        logInfoCPU[i]=0;
+        logInfoCPU[i]=i;
     
     
     error = clEnqueueWriteBuffer(command_queue,
@@ -155,6 +155,33 @@ void runScheduler(cl_context context, int timing){
     
     if (timing) writeTime+=eventTime(writeEvent,command_queue);
     clReleaseEvent(writeEvent);
+    
+    // setArgs
+    
+    // set the arguments for setArgs
+    int taskNum = 0;
+    int argIndex = 0;
+    
+    cl_int argchk;
+    argchk  = clSetKernelArg(setArg_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
+    argchk |= clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
+    argchk |= clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
+    argchk |= clSetKernelArg(setArg_kernel, 3, sizeof(cl_mem), (void *)&logInfoGPU);
+
+    cl_errChk(argchk,"ERROR in Setting SetArg kernel args");
+    
+    // launch kernel
+    error = clEnqueueTask(
+              command_queue,  setArg_kernel,
+              0, NULL, &kernelEvent);
+
+    cl_errChk(error,"ERROR in Executing SetArg Kernel");
+    if (timing) {
+         kernelTime+=eventTime(kernelEvent,command_queue);
+    }
+    clReleaseEvent(kernelEvent);
+    
+    // end setArgs
     
     unsigned lockInit = 0;
     
@@ -187,14 +214,12 @@ void runScheduler(cl_context context, int timing){
 	
 	// 4. Setup and Run kernels
         // kernel args
-        cl_int argchk;
         argchk  = clSetKernelArg(scheduler_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
         argchk |= clSetKernelArg(scheduler_kernel, 1, sizeof(unsigned int), &queueSize);
         argchk |= clSetKernelArg(scheduler_kernel, 2, sizeof(unsigned int), &numberOfTasksToExecute);
         argchk |= clSetKernelArg(scheduler_kernel, 3, sizeof(cl_mem), (void *)&lockGPU);
         argchk |= clSetKernelArg(scheduler_kernel, 4, sizeof(unsigned int)*localWorksize, NULL);
         argchk |= clSetKernelArg(scheduler_kernel, 5, sizeof(cl_mem), (void *)&spoofingGPU);
-        argchk |= clSetKernelArg(scheduler_kernel, 6, sizeof(cl_mem), (void *)&logInfoGPU);
     
         cl_errChk(argchk,"ERROR in Setting Scheduler kernel args");
         

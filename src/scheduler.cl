@@ -1,3 +1,5 @@
+#pragma OPENCL EXTENSION cl_amd_printf:enable
+
 #ifndef MAXTASKS
 #   define MAXTASKS 32
 #endif
@@ -68,8 +70,7 @@ __kernel void scheduler(__global Task *queue,
                         unsigned int numberOfTasksToExecute,
                         __global unsigned int *lock,
                         __local unsigned int *sharedMem,
-                        __global SpoofedId *spoofing,
-                        __global unsigned int *logInfo) {
+                        __global SpoofedId *spoofing) {
         
     size_t globalId = get_global_id(0);
     size_t workgroups = get_num_groups(0);
@@ -117,7 +118,7 @@ __kernel void scheduler(__global Task *queue,
         spoofing[globalId].numGroups[1] = next->task->yDim;
         spoofing[globalId].numGroups[2] = 1;
         
-        dispatch(spoofing,next,logInfo);
+        dispatch(spoofing,next);
     }
 }
 
@@ -156,7 +157,26 @@ unsigned int getWork(__global Task *queue,
     return numberOfTasksToExecute;
 }
 
-__kernel void setArg() {
+__kernel void setArg(__global Task *task,
+                     uint taskNum,
+                     uint index,
+                     ArgType arg) {
+    task[taskNum].kernelArgs[index] = arg;
+}
+
+__kernel void setArgGlobalUint(__global Task *task,
+                     uint taskNum,
+                     uint index,
+                     __global uint *arg) {
+    task[taskNum].kernelArgs[index].globalUintArg = arg;
+    printf("arg:%d\n",arg[3]);
+}
+
+__kernel void setArgGlobalFloat(__global Task *task,
+                     uint taskNum,
+                     uint index,
+                     __global float *arg) {
+    task[taskNum].kernelArgs[index].globalFloatArg = arg;
 }
 
 
