@@ -95,7 +95,8 @@ void runScheduler(cl_context context, int timing){
     size_t globalWorksize = 8192;
     size_t localWorksize = 256;
     
-    
+        printf("stringify path:%s\n",STRINGIFY(RUNLOC));
+
     scheduler_program = cl_CompileProgram(
         (char *)"scheduler.cl",(char *)"-I " STRINGIFY(RUNLOC));
    
@@ -140,7 +141,7 @@ void runScheduler(cl_context context, int timing){
     
     unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*localWorksize*2);
     for (unsigned int i=0;i<globalWorksize*localWorksize*2;i++)
-        logInfoCPU[i]=i;
+        logInfoCPU[i]=0;
     
     
     error = clEnqueueWriteBuffer(command_queue,

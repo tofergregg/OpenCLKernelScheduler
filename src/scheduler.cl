@@ -118,7 +118,9 @@ __kernel void scheduler(__global Task *queue,
         spoofing[globalId].numGroups[1] = next->task->yDim;
         spoofing[globalId].numGroups[2] = 1;
         
-        dispatch(spoofing,next);
+        if(next->task->xThreads * next->task->yThreads > get_local_id(0)){
+            dispatch(spoofing,next);
+        }
     }
 }
 
@@ -169,7 +171,6 @@ __kernel void setArgGlobalUint(__global Task *task,
                      uint index,
                      __global uint *arg) {
     task[taskNum].kernelArgs[index].globalUintArg = arg;
-    printf("arg:%d\n",arg[3]);
 }
 
 __kernel void setArgGlobalFloat(__global Task *task,

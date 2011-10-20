@@ -9,5 +9,7 @@ __kernel void kernel1(__global uint *logInfo,
     uint index = gidy + gidx * get_global_size(1);
     logInfo[2*index]=lidx;
     logInfo[2*index+1]=lidy;
+    printf("logInfo:%d,%d\n",logInfo[2*index],logInfo[2*index+1]);
+
 }
 
