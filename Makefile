@@ -216,11 +216,11 @@ $(OBJDIR)/%.c.o : $(SRCDIR)%.c $(INCDIR)%.h
 	$(VERBOSE)$(CC) $(CFLAGS) -o $@ -c $<
 
 $(OBJDIR)/%.cpp.o : $(SRCDIR)%.cpp $(INCDIR)%.h
-	$(VERBOSE)$(CXX) $(CXXFLAGS) -DRUNLOC=$(shell cd $(TARGETDIR);pwd) -o $@ -c $<
+	$(VERBOSE)$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 $(TARGET): makedirectories $(OBJS) Makefile
 	$(VERBOSE)$(LINKLINE)
-	@cp src/*.cl $(TARGETDIR)
+	@cp src/scheduler.cl $(TARGETDIR)
 
 makedirectories:
 	$(VERBOSE)mkdir -p $(LIBDIR)
