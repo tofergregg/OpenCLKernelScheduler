@@ -17,13 +17,20 @@ typedef struct
         unsigned int numGroups[3];
     } SpoofedId;
 
+typedef /*unholy*/ union
+    {
+        cl_uint uintArg;
+        cl_float floatArg;
+        char padding[8];
+    } ArgType;
+
 typedef struct
     {
         unsigned int workgroupsLeft; // number of workgroups in each dimension multiplied together
         unsigned int xDim,yDim;
         unsigned int xThreads,yThreads;
         unsigned int kernelId;
-        unsigned int kernelArgs[MAXARGS];
+        ArgType kernelArgs[MAXARGS];
     } Task;
 
 cl_context context=NULL;

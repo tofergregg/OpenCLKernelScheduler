@@ -14,13 +14,24 @@ typedef struct
         unsigned int numGroups[3];
     } SpoofedId;
     
+typedef /*unholy*/ union
+    {
+        uint uintArg;
+        float floatArg;
+        __global uint * globalUintArg;
+        __global float * globalFloatArg;
+        __local uint * localUintArg;
+        __local float * localFloatArg;
+        char padding[8];
+    } ArgType;
+
 typedef struct
     {
         unsigned int workgroupsLeft; // number of workgroups in each dimension multiplied together
         unsigned int xDim,yDim;
         unsigned int xThreads,yThreads;
         unsigned int kernelId;
-        unsigned int kernelArgs[MAXARGS];
+        ArgType kernelArgs[MAXARGS];
     } Task;
     
 typedef struct
