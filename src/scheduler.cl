@@ -2,6 +2,8 @@
 #   define MAXTASKS 32
 #endif
 
+#define MAXARGS 5
+
 typedef struct
     {
         unsigned int globalId[3];
@@ -11,6 +13,21 @@ typedef struct
         unsigned int groupId[3];
         unsigned int numGroups[3];
     } SpoofedId;
+    
+typedef struct
+    {
+        unsigned int workgroupsLeft; // number of workgroups in each dimension multiplied together
+        unsigned int xDim,yDim;
+        unsigned int xThreads,yThreads;
+        unsigned int kernelId;
+        unsigned int kernelArgs[MAXARGS];
+    } Task;
+    
+typedef struct
+    {
+         unsigned int x,y,z;
+         __global Task *task;
+    } WorkItem;
     
 #define get_global_id(num)   spoofing[get_global_id(0)].globalId[ num ]
 #define get_local_id(num)    spoofing[get_global_id(0)].localId[ num ]
@@ -27,22 +44,7 @@ typedef struct
 #undef get_group_id
 #undef get_num_groups
 
-#define MAXARGS 5
-
-typedef struct
-    {
-        unsigned int workgroupsLeft; // number of workgroups in each dimension multiplied together
-        unsigned int xDim,yDim;
-        unsigned int xThreads,yThreads;
-        unsigned int kernelId;
-        unsigned int kernelArgs[MAXARGS];
-    } Task;
-    
-typedef struct
-    {
-         unsigned int x,y,z;
-         __global Task *task;
-    } WorkItem;
+#include "switchKernel.cl"
 
 unsigned int getWork(__global Task *queue, 
              const int queueSize, 
@@ -104,7 +106,7 @@ __kernel void scheduler(__global Task *queue,
         spoofing[globalId].numGroups[1] = next->task->yDim;
         spoofing[globalId].numGroups[2] = 1;
         
-        #include "switchKernel.cl"
+        dispatch(spoofing,next,logInfo);
     }
 }
 

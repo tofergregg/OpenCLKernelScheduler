@@ -11,4 +11,3 @@ __kernel void kernel1(__global uint *logInfo,
     logInfo[2*index+1]=lidy;
 }
 
-

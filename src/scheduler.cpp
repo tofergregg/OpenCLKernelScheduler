@@ -1,6 +1,9 @@
 #ifndef __SCHEDULER__
 #define __SCHEDULER__
 
+#define STRINGIFY(s) STRINGIFY_HELPER(s)
+#define STRINGIFY_HELPER(s) #s
+
 #include "scheduler.h"
 #define MAXARGS 5
 
@@ -82,12 +85,12 @@ void runScheduler(cl_context context, int timing){
     float readTime=0;
     //float writeMB=0,readMB=0;
     
-    size_t globalWorksize = 128;
-    size_t localWorksize = 32;
+    size_t globalWorksize = 8192;
+    size_t localWorksize = 256;
     
     
     scheduler_program = cl_CompileProgram(
-        (char *)"scheduler.cl",(char *)"-I /Users/Tofer/Dropbox/UVA_Dropbox/ISCA2012/KernelScheduler/bin/darwin/release");
+        (char *)"scheduler.cl",(char *)"-I " STRINGIFY(RUNLOC));
    
     scheduler_kernel = clCreateKernel(
         scheduler_program, "scheduler", &status);
@@ -121,13 +124,16 @@ void runScheduler(cl_context context, int timing){
     cl_command_queue command_queue = cl_getCommandQueue();
     
     Task task;
-    task.workgroupsLeft = 10;
-    task.xDim = 1;
-    task.yDim = 1;
-    task.xThreads = 13;
-    task.yThreads = 7;
+    task.xDim = 3;
+    task.yDim = 2;
+    task.workgroupsLeft = task.xDim * task.yDim;
+    task.xThreads = 2;
+    task.yThreads = 3;
     task.kernelId = 0;
     
+    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*localWorksize*2);
+    for (unsigned int i=0;i<globalWorksize*localWorksize*2;i++)
+        logInfoCPU[i]=0;
     
     
     error = clEnqueueWriteBuffer(command_queue,
@@ -151,6 +157,18 @@ void runScheduler(cl_context context, int timing){
                0, // offset
                sizeof(unsigned int),
                &lockInit,
+               0,
+               NULL,
+               &writeEvent);
+    if (timing) writeTime+=eventTime(writeEvent,command_queue);
+    clReleaseEvent(writeEvent);
+    
+    error = clEnqueueWriteBuffer(command_queue,
+               logInfoGPU,
+               1, // change to 0 for nonblocking write
+               0, // offset
+               sizeof(unsigned int) * globalWorksize * localWorksize * 2,
+               logInfoCPU,
                0,
                NULL,
                &writeEvent);
@@ -186,7 +204,6 @@ void runScheduler(cl_context context, int timing){
         clReleaseEvent(kernelEvent);
 		
 //5. transfer data off of device
-    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*localWorksize*2);
     error = clEnqueueReadBuffer(command_queue,
         logInfoGPU,
         1, // change to 0 for nonblocking write
@@ -206,7 +223,7 @@ void runScheduler(cl_context context, int timing){
         unsigned int x,y;
         x = logInfoCPU[i*2];
         y = logInfoCPU[i*2+1];
-        if (x != 0 && y != 0)
+        if (x != 0 || y != 0)
           printf("index:%d, x:%d, y:%d\n",i,x,y);
     }
 
@@ -304,4 +321,3 @@ void printUsage(){
 
 
 #endif
-
