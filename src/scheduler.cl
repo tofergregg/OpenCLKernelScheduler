@@ -1,47 +1,11 @@
 #pragma OPENCL EXTENSION cl_amd_printf:enable
 
+#include "types.h"
+
 #ifndef MAXTASKS
 #   define MAXTASKS 32
 #endif
 
-#define MAXARGS 5
-
-typedef struct
-    {
-        unsigned int globalId[3];
-        unsigned int localId[3];
-        unsigned int globalSize[3];
-        unsigned int localSize[3];
-        unsigned int groupId[3];
-        unsigned int numGroups[3];
-    } SpoofedId;
-    
-typedef /*unholy*/ union
-    {
-        uint uintArg;
-        float floatArg;
-        __global uint * globalUintArg;
-        __global float * globalFloatArg;
-        __local uint * localUintArg;
-        __local float * localFloatArg;
-        char padding[8];
-    } ArgType;
-
-typedef struct
-    {
-        unsigned int workgroupsLeft; // number of workgroups in each dimension multiplied together
-        unsigned int xDim,yDim;
-        unsigned int xThreads,yThreads;
-        unsigned int kernelId;
-        ArgType kernelArgs[MAXARGS];
-    } Task;
-    
-typedef struct
-    {
-         unsigned int x,y,z;
-         __global Task *task;
-    } WorkItem;
-    
 #define get_global_id(num)   spoofing[get_global_id(0)].globalId[ num ]
 #define get_local_id(num)    spoofing[get_global_id(0)].localId[ num ]
 #define get_global_size(num) spoofing[get_global_id(0)].globalSize[ num ]
