@@ -6,12 +6,12 @@
 #   define MAXTASKS 32
 #endif
 
-#define get_global_id(num)   spoofing[get_global_id(0)].globalId[ num ]
-#define get_local_id(num)    spoofing[get_global_id(0)].localId[ num ]
-#define get_global_size(num) spoofing[get_global_id(0)].globalSize[ num ]
-#define get_local_size(num)  spoofing[get_global_id(0)].localSize[ num ]
-#define get_group_id(num)    spoofing[get_global_id(0)].groupId[ num ]
-#define get_num_groups(num)  spoofing[get_global_id(0)].numGroups[ num ]
+#define get_global_id(num)   spoofing[(get_global_id)(0)].globalId[ num ]
+#define get_local_id(num)    spoofing[(get_global_id)(0)].localId[ num ]
+#define get_global_size(num) spoofing[(get_global_id)(0)].globalSize[ num ]
+#define get_local_size(num)  spoofing[(get_global_id)(0)].localSize[ num ]
+#define get_group_id(num)    spoofing[(get_global_id)(0)].groupId[ num ]
+#define get_num_groups(num)  spoofing[(get_global_id)(0)].numGroups[ num ]
 #include "kernel1.cl"
 // #include "kernel2"
 #undef get_global_id
@@ -34,7 +34,8 @@ __kernel void scheduler(__global Task *queue,
                         unsigned int numberOfTasksToExecute,
                         __global unsigned int *lock,
                         __local unsigned int *sharedMem,
-                        __global SpoofedId *spoofing) {
+                        __global SpoofedId *spoofing) {//,
+                        //__global unsigned int *logInfo) {
         
     size_t globalId = get_global_id(0);
     size_t workgroups = get_num_groups(0);
@@ -107,7 +108,7 @@ unsigned int getWork(__global Task *queue,
         for (unsigned int workgroup = 0; workgroup < workgroupsGrabbed; workgroup++) {
             unsigned int workgroupId = task->workgroupsLeft - workgroup - 1;
             workItem[index].x = workgroupId % task->xDim;
-            workItem[index].y = workgroupId / task->yDim;
+            workItem[index].y = workgroupId / task->xDim;
             workItem[index].z = 1;
             workItem[index].task = task;
             index++;

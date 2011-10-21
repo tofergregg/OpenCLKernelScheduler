@@ -47,7 +47,7 @@ typedef struct
 
 typedef /*unholy*/ union
     {
-        uint uintArg;
+        cl_uint uintArg;
         float floatArg;
 #ifdef __OPENCL_VERSION__
         __global uint * globalUintArg;

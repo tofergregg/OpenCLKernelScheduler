@@ -105,7 +105,7 @@ void runScheduler(cl_context context, int timing){
     if(status)exit(1);
         
     logInfoGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
-        sizeof(unsigned int) * globalWorksize * localWorksize * 2, NULL, &status);    
+        sizeof(unsigned int) * globalWorksize * 2, NULL, &status);    
     status = cl_errChk(status, (char *)"Error allocating logInfoGPU buffer");
     if(status)exit(1);
 
@@ -119,9 +119,10 @@ void runScheduler(cl_context context, int timing){
     task.yThreads = 3;
     task.kernelId = 0;
     
-    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*localWorksize*2);
-    for (unsigned int i=0;i<globalWorksize*localWorksize*2;i++)
-        logInfoCPU[i]=0;
+    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*2);
+    for (unsigned int i=0;i<globalWorksize*2;i++){
+        logInfoCPU[i]=0xcafebabe;
+    }
     
     
     status = clEnqueueWriteBuffer(command_queue,
@@ -182,7 +183,7 @@ void runScheduler(cl_context context, int timing){
                logInfoGPU,
                1, // change to 0 for nonblocking write
                0, // offset
-               sizeof(unsigned int) * globalWorksize * localWorksize * 2,
+               sizeof(unsigned int) * globalWorksize * 2,
                logInfoCPU,
                0,
                NULL,
@@ -206,8 +207,9 @@ void runScheduler(cl_context context, int timing){
         argchk  = clSetKernelArg(scheduler_kernel, 4, sizeof(unsigned int)*localWorksize, NULL);
         cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 4");
         argchk  = clSetKernelArg(scheduler_kernel, 5, sizeof(cl_mem), (void *)&spoofingGPU);
-    
         cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 5");
+        //argchk  = clSetKernelArg(scheduler_kernel, 6, sizeof(cl_mem), (void *)&logInfoGPU);
+        //cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 6");
         
         // launch kernel
         status = clEnqueueNDRangeKernel(
@@ -226,7 +228,7 @@ void runScheduler(cl_context context, int timing){
         logInfoGPU,
         1, // change to 0 for nonblocking write
         0, // offset
-        sizeof(unsigned int) * globalWorksize * localWorksize,
+        sizeof(unsigned int) * globalWorksize * 2,
         logInfoCPU,
         0,
         NULL,
@@ -237,11 +239,11 @@ void runScheduler(cl_context context, int timing){
     clReleaseEvent(readEvent);
 
 // print log info
-    for(unsigned int i=0;i<globalWorksize*localWorksize;i++) {
+    for(unsigned int i=0;i<globalWorksize;i++) {
         unsigned int x,y;
         x = logInfoCPU[i*2];
         y = logInfoCPU[i*2+1];
-        if (x != 0 || y != 0)
+        if (x != 0xcafebabe || y != 0xcafebabe)
           printf("index:%d, x:%d, y:%d\n",i,x,y);
     }
 
