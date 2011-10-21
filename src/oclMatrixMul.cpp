@@ -27,6 +27,7 @@
 
 // project include
 #include "matrixMul.h"
+#include "scheduler.h"
 
 enum shrBOOL
 {
@@ -44,10 +45,12 @@ int iSizeMultiple = 1;
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
 int runTest(int argc, const char** argv);
-void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C );
+void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C,
+                    cl_context cxGPUContext,cl_command_queue *commandQueue);
 
 
-void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C )
+void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C,
+                    cl_context cxGPUContext,cl_command_queue *commandQueue)
 {
     cl_mem d_A[MAX_GPU_COUNT];
     cl_mem d_C[MAX_GPU_COUNT];
@@ -84,34 +87,34 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
 
         // Output buffer
         d_C[i] = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,  workSize[i] * uiWC * sizeof(float), NULL,NULL);
-              
-        // set the args values
-        clSetKernelArg(multiplicationKernel[i], 0, sizeof(cl_mem), (void *) &d_C[i]);
-        clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *) &d_A[i]);
-        clSetKernelArg(multiplicationKernel[i], 2, sizeof(cl_mem), (void *) &d_B[i]);
-        clSetKernelArg(multiplicationKernel[i], 3, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
-        clSetKernelArg(multiplicationKernel[i], 4, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
-        clSetKernelArg(multiplicationKernel[i], 5, sizeof(cl_int), (void *) &uiWA);
-        clSetKernelArg(multiplicationKernel[i], 6, sizeof(cl_int), (void *) &uiWB);
-
-        if(i+1 < ciDeviceCount)
-            workOffset[i + 1] = workOffset[i] + workSize[i];
+//               
+//         // set the args values
+//         clSetKernelArg(multiplicationKernel[i], 0, sizeof(cl_mem), (void *) &d_C[i]);
+//         clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *) &d_A[i]);
+//         clSetKernelArg(multiplicationKernel[i], 2, sizeof(cl_mem), (void *) &d_B[i]);
+//         clSetKernelArg(multiplicationKernel[i], 3, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
+//         clSetKernelArg(multiplicationKernel[i], 4, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
+//         clSetKernelArg(multiplicationKernel[i], 5, sizeof(cl_int), (void *) &uiWA);
+//         clSetKernelArg(multiplicationKernel[i], 6, sizeof(cl_int), (void *) &uiWB);
+// 
+//         if(i+1 < ciDeviceCount)
+//             workOffset[i + 1] = workOffset[i] + workSize[i];
     }
     
     // Execute Multiplication on all GPUs in parallel
     size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
     size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, uiWC), shrRoundUp(BLOCK_SIZE, workSize[0])};
-    
-    // Launch kernels on devices
-
-        for(unsigned int i = 0; i < ciDeviceCount; i++) 
-        {
-			// Multiplication - non-blocking execution:  launch and push to device(s)
-			globalWorkSize[1] = shrRoundUp(BLOCK_SIZE, workSize[i]);
-			clEnqueueNDRangeKernel(commandQueue[i], multiplicationKernel[i], 2, 0, globalWorkSize, localWorkSize,
-				                   0, NULL, &GPUExecution[i]);
-            clFlush(commandQueue[i]);
-		}
+//     
+//     // Launch kernels on devices
+// 
+//         for(unsigned int i = 0; i < ciDeviceCount; i++) 
+//         {
+// 			// Multiplication - non-blocking execution:  launch and push to device(s)
+// 			globalWorkSize[1] = shrRoundUp(BLOCK_SIZE, workSize[i]);
+// 			clEnqueueNDRangeKernel(commandQueue[i], multiplicationKernel[i], 2, 0, globalWorkSize, localWorkSize,
+// 				                   0, NULL, &GPUExecution[i]);
+//             clFlush(commandQueue[i]);
+// 		}
 
 
     // sync all queues to host
@@ -146,7 +149,7 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for 
 ////////////////////////////////////////////////////////////////////////////////
-int runTest(int argc, const char** argv)
+int runTest(int argc, const char** argv, cl_context cxGPUContext, cl_command_queue *commandQueue)
 {
     cl_uint ciDeviceCount = 0;
     cl_int ciErrNum = CL_SUCCESS;
@@ -182,18 +185,12 @@ int runTest(int argc, const char** argv)
     printf("\nRunning Computations on 1 - %d GPU's...\n\n", ciDeviceCount);
     for(unsigned int k = 1; k <= ciDeviceCount; ++k) 
     {
-        matrixMulGPU(k, h_A, h_B_data, mem_size_B, h_C);
+        matrixMulGPU(k, h_A, h_B_data, mem_size_B, h_C,cxGPUContext,commandQueue);
     }
 
     // clean up OCL resources
     ciErrNum = clReleaseMemObject(h_A);
-    for(unsigned int k = 0; k < ciDeviceCount; ++k) 
-    {
-        ciErrNum |= clReleaseKernel( multiplicationKernel[k] );
-        ciErrNum |= clReleaseCommandQueue( commandQueue[k] );
-    }
-    ciErrNum |= clReleaseProgram(cpProgram);
-    ciErrNum |= clReleaseContext(cxGPUContext);
+
     if(ciErrNum != CL_SUCCESS)
     {
         printf("Error: Failure releasing OpenCL resources: %d\n", ciErrNum);
@@ -204,9 +201,8 @@ int runTest(int argc, const char** argv)
     free(h_A_data);
     free(h_B_data);
     free(h_C);
-    free(reference);
     
-    return ((shrTRUE == res) ? CL_SUCCESS : -3000);
+    return CL_SUCCESS;
 }
 
 // Round Up Division function

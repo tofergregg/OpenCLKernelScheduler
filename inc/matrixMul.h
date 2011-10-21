@@ -17,12 +17,15 @@
 
 // Basic Matrix dimensions (can be amplified by command line switch)
 // (chosen as multiples of the thread block size for simplicity)
-#define WA (5  * BLOCK_SIZE) // Matrix A width
+#define WA (5 * BLOCK_SIZE) // Matrix A width
 #define HA (10 * BLOCK_SIZE) // Matrix A height
-#define WB (5  * BLOCK_SIZE) // Matrix B width
+#define WB (5 * BLOCK_SIZE) // Matrix B width
 #define HB WA  // Matrix B height
 #define WC WB  // Matrix C width 
 #define HC HA  // Matrix C height
+
+size_t shrRoundUp(int group_size, int global_size);
+void shrFillArray(float* pfData, int iSize);
 
 #endif // _MATRIXMUL_H_
 
