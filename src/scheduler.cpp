@@ -1,27 +1,11 @@
 #ifndef __SCHEDULER__
 #define __SCHEDULER__
 
+#define STRINGIFY(s) STRINGIFY_HELPER(s)
+#define STRINGIFY_HELPER(s) #s
+
 #include "scheduler.h"
-#define MAXARGS 5
-
-typedef struct
-    {
-        unsigned int globalId[3];
-        unsigned int localId[3];
-        unsigned int globalSize[3];
-        unsigned int localSize[3];
-        unsigned int groupId[3];
-        unsigned int numGroups[3];
-    } SpoofedId;
-
-typedef struct
-    {
-        unsigned int workgroupsLeft; // number of workgroups in each dimension multiplied together
-        unsigned int xDim,yDim;
-        unsigned int xThreads,yThreads;
-        unsigned int kernelId;
-        unsigned int kernelArgs[MAXARGS];
-    } Task;
+#include "types.h"
 
 cl_context context=NULL;
 
@@ -82,55 +66,66 @@ void runScheduler(cl_context context, int timing){
     float readTime=0;
     //float writeMB=0,readMB=0;
     
-    size_t globalWorksize = 128;
-    size_t localWorksize = 32;
-    
+    size_t globalWorksize = 8192;
+    size_t localWorksize = 256;
     
     scheduler_program = cl_CompileProgram(
-        (char *)"scheduler.cl",(char *)"-I /Users/Tofer/Dropbox/UVA_Dropbox/ISCA2012/KernelScheduler/bin/darwin/release");
+        (char *)"scheduler.cl",
+        (char *)"-I " STRINGIFY(RUNLOC) " -I " STRINGIFY(INCLOC)
+        );
    
     scheduler_kernel = clCreateKernel(
         scheduler_program, "scheduler", &status);
     status = cl_errChk(status, (char *)"Error Creating scheduler kernel");
     if(status)exit(1);
     
-//     setArg_kernel = clCreateKernel(
-//         scheduler_program, "setArg", &status);
-//     status = cl_errChk(status, (char *)"Error Creating setArg kernel");
-//     if(status)exit(1);
+    setArg_kernel = clCreateKernel(
+        scheduler_program, "setArgGlobalUint", &status);
+    status = cl_errChk(status, (char *)"Error Creating setArg kernel");
+    if(status)exit(1);
     
     // 2. set up memory on device and send ipts data to device
 
     cl_mem taskGPU,lockGPU,spoofingGPU;
     cl_mem logInfoGPU;
 
-    cl_int error=0;
-
     taskGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
-        sizeof(Task), NULL, &error);
+        sizeof(Task), NULL, &status);
+    status = cl_errChk(status, (char *)"Error allocating taskGPU buffer");
+    if(status)exit(1);
         
     lockGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
-        sizeof(unsigned int), NULL, &error);
+        sizeof(unsigned int), NULL, &status);
+    status = cl_errChk(status, (char *)"Error allocating lockGPU buffer");
+    if(status)exit(1);
 
     spoofingGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
-        sizeof(SpoofedId) * globalWorksize * localWorksize, NULL, &error);
+        sizeof(SpoofedId) * globalWorksize, NULL, &status);
+    status = cl_errChk(status, (char *)"Error allocating spoofingGPU buffer");
+    if(status)exit(1);
         
     logInfoGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
-        sizeof(unsigned int) * globalWorksize * localWorksize * 2, NULL, &error);    
+        sizeof(unsigned int) * globalWorksize * 2, NULL, &status);    
+    status = cl_errChk(status, (char *)"Error allocating logInfoGPU buffer");
+    if(status)exit(1);
 
     cl_command_queue command_queue = cl_getCommandQueue();
     
     Task task;
-    task.workgroupsLeft = 10;
-    task.xDim = 1;
-    task.yDim = 1;
-    task.xThreads = 13;
-    task.yThreads = 7;
+    task.xDim = 3;
+    task.yDim = 2;
+    task.workgroupsLeft = task.xDim * task.yDim;
+    task.xThreads = 2;
+    task.yThreads = 3;
     task.kernelId = 0;
     
+    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*2);
+    for (unsigned int i=0;i<globalWorksize*2;i++){
+        logInfoCPU[i]=0xcafebabe;
+    }
     
     
-    error = clEnqueueWriteBuffer(command_queue,
+    status = clEnqueueWriteBuffer(command_queue,
                taskGPU,
                1, // change to 0 for nonblocking write
                0, // offset
@@ -143,14 +138,53 @@ void runScheduler(cl_context context, int timing){
     if (timing) writeTime+=eventTime(writeEvent,command_queue);
     clReleaseEvent(writeEvent);
     
+    // setArgs
+    
+    // set the arguments for setArgs
+    int taskNum = 0;
+    int argIndex = 0;
+    
+    cl_int argchk;
+    argchk  = clSetKernelArg(setArg_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
+    argchk |= clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
+    argchk |= clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
+    argchk |= clSetKernelArg(setArg_kernel, 3, sizeof(cl_mem), (void *)&logInfoGPU);
+
+    cl_errChk(argchk,"ERROR in Setting SetArg kernel args");
+    
+    // launch kernel
+    status = clEnqueueTask(
+              command_queue,  setArg_kernel,
+              0, NULL, &kernelEvent);
+
+    cl_errChk(status,"ERROR in Executing SetArg Kernel");
+    if (timing) {
+         kernelTime+=eventTime(kernelEvent,command_queue);
+    }
+    clReleaseEvent(kernelEvent);
+    
+    // end setArgs
+    
     unsigned lockInit = 0;
     
-    error = clEnqueueWriteBuffer(command_queue,
+    status = clEnqueueWriteBuffer(command_queue,
                lockGPU,
                1, // change to 0 for nonblocking write
                0, // offset
                sizeof(unsigned int),
                &lockInit,
+               0,
+               NULL,
+               &writeEvent);
+    if (timing) writeTime+=eventTime(writeEvent,command_queue);
+    clReleaseEvent(writeEvent);
+    
+    status = clEnqueueWriteBuffer(command_queue,
+               logInfoGPU,
+               1, // change to 0 for nonblocking write
+               0, // offset
+               sizeof(unsigned int) * globalWorksize * 2,
+               logInfoCPU,
                0,
                NULL,
                &writeEvent);
@@ -162,51 +196,54 @@ void runScheduler(cl_context context, int timing){
 	
 	// 4. Setup and Run kernels
         // kernel args
-        cl_int argchk;
         argchk  = clSetKernelArg(scheduler_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
-        argchk |= clSetKernelArg(scheduler_kernel, 1, sizeof(unsigned int), &queueSize);
-        argchk |= clSetKernelArg(scheduler_kernel, 2, sizeof(unsigned int), &numberOfTasksToExecute);
-        argchk |= clSetKernelArg(scheduler_kernel, 3, sizeof(cl_mem), (void *)&lockGPU);
-        argchk |= clSetKernelArg(scheduler_kernel, 4, sizeof(unsigned int)*localWorksize, NULL);
-        argchk |= clSetKernelArg(scheduler_kernel, 5, sizeof(cl_mem), (void *)&spoofingGPU);
-        argchk |= clSetKernelArg(scheduler_kernel, 6, sizeof(cl_mem), (void *)&logInfoGPU);
-    
-        cl_errChk(argchk,"ERROR in Setting Scheduler kernel args");
+        cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 0");
+        argchk  = clSetKernelArg(scheduler_kernel, 1, sizeof(unsigned int), &queueSize);
+        cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 1");
+        argchk  = clSetKernelArg(scheduler_kernel, 2, sizeof(unsigned int), &numberOfTasksToExecute);
+        cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 2");
+        argchk  = clSetKernelArg(scheduler_kernel, 3, sizeof(cl_mem), (void *)&lockGPU);
+        cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 3");
+        argchk  = clSetKernelArg(scheduler_kernel, 4, sizeof(unsigned int)*localWorksize, NULL);
+        cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 4");
+        argchk  = clSetKernelArg(scheduler_kernel, 5, sizeof(cl_mem), (void *)&spoofingGPU);
+        cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 5");
+        //argchk  = clSetKernelArg(scheduler_kernel, 6, sizeof(cl_mem), (void *)&logInfoGPU);
+        //cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 6");
         
         // launch kernel
-        error = clEnqueueNDRangeKernel(
+        status = clEnqueueNDRangeKernel(
                   command_queue,  scheduler_kernel, 1, 0,
                   &globalWorksize,&localWorksize,
                   0, NULL, &kernelEvent);
 
-        cl_errChk(error,"ERROR in Executing Scheduler Kernel");
+        cl_errChk(status,"ERROR in Executing Scheduler Kernel");
         if (timing) {
              kernelTime+=eventTime(kernelEvent,command_queue);
         }
         clReleaseEvent(kernelEvent);
 		
 //5. transfer data off of device
-    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*localWorksize*2);
-    error = clEnqueueReadBuffer(command_queue,
+    status = clEnqueueReadBuffer(command_queue,
         logInfoGPU,
         1, // change to 0 for nonblocking write
         0, // offset
-        sizeof(unsigned int) * globalWorksize * localWorksize,
+        sizeof(unsigned int) * globalWorksize * 2,
         logInfoCPU,
         0,
         NULL,
         &readEvent);
 
-    cl_errChk(error,"ERROR with clEnqueueReadBuffer");
+    cl_errChk(status,"ERROR with clEnqueueReadBuffer");
     if (timing) readTime+=eventTime(readEvent,command_queue);
     clReleaseEvent(readEvent);
 
 // print log info
-    for(unsigned int i=0;i<globalWorksize*localWorksize;i++) {
+    for(unsigned int i=0;i<globalWorksize;i++) {
         unsigned int x,y;
         x = logInfoCPU[i*2];
         y = logInfoCPU[i*2+1];
-        if (x != 0 && y != 0)
+        if (x != 0xcafebabe || y != 0xcafebabe)
           printf("index:%d, x:%d, y:%d\n",i,x,y);
     }
 
@@ -304,4 +341,3 @@ void printUsage(){
 
 
 #endif
-

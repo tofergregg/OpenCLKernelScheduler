@@ -1,23 +1,17 @@
+#pragma OPENCL EXTENSION cl_amd_printf:enable
+
+#include "types.h"
+
 #ifndef MAXTASKS
 #   define MAXTASKS 32
 #endif
 
-typedef struct
-    {
-        unsigned int globalId[3];
-        unsigned int localId[3];
-        unsigned int globalSize[3];
-        unsigned int localSize[3];
-        unsigned int groupId[3];
-        unsigned int numGroups[3];
-    } SpoofedId;
-    
-#define get_global_id(num)   spoofing[get_global_id(0)].globalId[ num ]
-#define get_local_id(num)    spoofing[get_global_id(0)].localId[ num ]
-#define get_global_size(num) spoofing[get_global_id(0)].globalSize[ num ]
-#define get_local_size(num)  spoofing[get_global_id(0)].localSize[ num ]
-#define get_group_id(num)    spoofing[get_global_id(0)].groupId[ num ]
-#define get_num_groups(num)  spoofing[get_global_id(0)].numGroups[ num ]
+#define get_global_id(num)   spoofing[(get_global_id)(0)].globalId[ num ]
+#define get_local_id(num)    spoofing[(get_global_id)(0)].localId[ num ]
+#define get_global_size(num) spoofing[(get_global_id)(0)].globalSize[ num ]
+#define get_local_size(num)  spoofing[(get_global_id)(0)].localSize[ num ]
+#define get_group_id(num)    spoofing[(get_global_id)(0)].groupId[ num ]
+#define get_num_groups(num)  spoofing[(get_global_id)(0)].numGroups[ num ]
 #include "kernel1.cl"
 // #include "kernel2"
 #undef get_global_id
@@ -27,22 +21,7 @@ typedef struct
 #undef get_group_id
 #undef get_num_groups
 
-#define MAXARGS 5
-
-typedef struct
-    {
-        unsigned int workgroupsLeft; // number of workgroups in each dimension multiplied together
-        unsigned int xDim,yDim;
-        unsigned int xThreads,yThreads;
-        unsigned int kernelId;
-        unsigned int kernelArgs[MAXARGS];
-    } Task;
-    
-typedef struct
-    {
-         unsigned int x,y,z;
-         __global Task *task;
-    } WorkItem;
+#include "switchKernel.cl"
 
 unsigned int getWork(__global Task *queue, 
              const int queueSize, 
@@ -55,8 +34,8 @@ __kernel void scheduler(__global Task *queue,
                         unsigned int numberOfTasksToExecute,
                         __global unsigned int *lock,
                         __local unsigned int *sharedMem,
-                        __global SpoofedId *spoofing,
-                        __global unsigned int *logInfo) {
+                        __global SpoofedId *spoofing) {//,
+                        //__global unsigned int *logInfo) {
         
     size_t globalId = get_global_id(0);
     size_t workgroups = get_num_groups(0);
@@ -104,7 +83,9 @@ __kernel void scheduler(__global Task *queue,
         spoofing[globalId].numGroups[1] = next->task->yDim;
         spoofing[globalId].numGroups[2] = 1;
         
-        #include "switchKernel.cl"
+        if(next->task->xThreads * next->task->yThreads > get_local_id(0)){
+            dispatch(spoofing,next);
+        }
     }
 }
 
@@ -127,7 +108,7 @@ unsigned int getWork(__global Task *queue,
         for (unsigned int workgroup = 0; workgroup < workgroupsGrabbed; workgroup++) {
             unsigned int workgroupId = task->workgroupsLeft - workgroup - 1;
             workItem[index].x = workgroupId % task->xDim;
-            workItem[index].y = workgroupId / task->yDim;
+            workItem[index].y = workgroupId / task->xDim;
             workItem[index].z = 1;
             workItem[index].task = task;
             index++;
@@ -143,7 +124,25 @@ unsigned int getWork(__global Task *queue,
     return numberOfTasksToExecute;
 }
 
-__kernel void setArg() {
+__kernel void setArg(__global Task *task,
+                     uint taskNum,
+                     uint index,
+                     ArgType arg) {
+    task[taskNum].kernelArgs[index] = arg;
+}
+
+__kernel void setArgGlobalUint(__global Task *task,
+                     uint taskNum,
+                     uint index,
+                     __global uint *arg) {
+    task[taskNum].kernelArgs[index].globalUintArg = arg;
+}
+
+__kernel void setArgGlobalFloat(__global Task *task,
+                     uint taskNum,
+                     uint index,
+                     __global float *arg) {
+    task[taskNum].kernelArgs[index].globalFloatArg = arg;
 }
 
 

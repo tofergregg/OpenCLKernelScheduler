@@ -7,8 +7,8 @@ __kernel void kernel1(__global uint *logInfo,
     uint lidy = get_local_id(1);
     
     uint index = gidy + gidx * get_global_size(1);
+    
     logInfo[2*index]=lidx;
     logInfo[2*index+1]=lidy;
 }
-
 
