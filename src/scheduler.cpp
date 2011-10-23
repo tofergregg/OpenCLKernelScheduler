@@ -117,13 +117,7 @@ void runScheduler(cl_context context, int timing){
     task.workgroupsLeft = task.xDim * task.yDim;
     task.xThreads = 2;
     task.yThreads = 3;
-    task.kernelId = 0;
-    
-    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*2);
-    for (unsigned int i=0;i<globalWorksize*2;i++){
-        logInfoCPU[i]=0xcafebabe;
-    }
-    
+    task.kernelId = 0;    
     
     status = clEnqueueWriteBuffer(command_queue,
                taskGPU,
@@ -141,27 +135,13 @@ void runScheduler(cl_context context, int timing){
     // setArgs
     
     // set the arguments for setArgs
-    int taskNum = 0;
-    int argIndex = 0;
-    
-    cl_int argchk;
-    argchk  = clSetKernelArg(setArg_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
-    argchk |= clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
-    argchk |= clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
-    argchk |= clSetKernelArg(setArg_kernel, 3, sizeof(cl_mem), (void *)&logInfoGPU);
-
-    cl_errChk(argchk,"ERROR in Setting SetArg kernel args");
-    
-    // launch kernel
-    status = clEnqueueTask(
-              command_queue,  setArg_kernel,
-              0, NULL, &kernelEvent);
-
-    cl_errChk(status,"ERROR in Executing SetArg Kernel");
-    if (timing) {
-         kernelTime+=eventTime(kernelEvent,command_queue);
-    }
-    clReleaseEvent(kernelEvent);
+    setArg(command_queue,
+            taskGPU,
+            0, // taskNum
+            0, // argIndex
+            setArg_kernel,
+            sizeof(cl_mem), // argSize
+            (void *)&logInfoGPU);
     
     // end setArgs
     
@@ -179,6 +159,11 @@ void runScheduler(cl_context context, int timing){
     if (timing) writeTime+=eventTime(writeEvent,command_queue);
     clReleaseEvent(writeEvent);
     
+    
+    unsigned int *logInfoCPU = (unsigned int *)malloc(sizeof(unsigned int)*globalWorksize*2);
+    for (unsigned int i=0;i<globalWorksize*2;i++){
+        logInfoCPU[i]=0xcafebabe;
+    }
     status = clEnqueueWriteBuffer(command_queue,
                logInfoGPU,
                1, // change to 0 for nonblocking write
@@ -196,7 +181,7 @@ void runScheduler(cl_context context, int timing){
 	
 	// 4. Setup and Run kernels
         // kernel args
-        argchk  = clSetKernelArg(scheduler_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
+        cl_int argchk  = clSetKernelArg(scheduler_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
         cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 0");
         argchk  = clSetKernelArg(scheduler_kernel, 1, sizeof(unsigned int), &queueSize);
         cl_errChk(argchk,"ERROR in Setting Scheduler kernel args 1");
@@ -276,6 +261,30 @@ float eventTime(cl_event event,cl_command_queue command_queue){
     cl_errChk(error,"ERROR in Event Profiling.");
 
     return (float)((eventEnd-eventStart)/1e9);
+}
+
+void setArg(cl_command_queue command_queue,
+            cl_mem taskGPU,
+            int taskNum,
+            int argIndex,
+            cl_kernel setArg_kernel,
+            unsigned int argSize,
+            void *argPtr){
+    
+    cl_int argchk;
+    argchk  = clSetKernelArg(setArg_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
+    argchk |= clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
+    argchk |= clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
+    argchk |= clSetKernelArg(setArg_kernel, 3, argSize, argPtr);
+
+    cl_errChk(argchk,"ERROR in Setting SetArg kernel args");
+    
+    // launch kernel
+    cl_int status = clEnqueueTask(
+              command_queue,  setArg_kernel,
+              0, NULL, NULL);
+    status = cl_errChk(status, (char *)"Error running setArg clEnqueuTask");
+    if(status)exit(1);
 }
 
 int parseCommandline(int argc, char *argv[], char* filename,

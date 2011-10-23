@@ -12,6 +12,8 @@
 #ifndef _MATRIXMUL_H_
 #define _MATRIXMUL_H_
 
+#include<string>
+
 // Thread block size
 #define BLOCK_SIZE 16
 

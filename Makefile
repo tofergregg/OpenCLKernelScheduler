@@ -16,7 +16,7 @@ EXECUTABLE	:= scheduler
 # C/C++ source files (compiled with gcc / c++)
 SRCDIR		:= src/
 CCFILES		:= scheduler.cpp clutils.cpp oclMatrixMul.cpp
-C_DEPS		:= scheduler.h clutils.h
+C_DEPS		:= scheduler.h clutils.h oclMatrixMul.h
 INCDIR		:= inc/
 
 ################################################################################
