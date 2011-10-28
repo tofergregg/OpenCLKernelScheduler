@@ -329,7 +329,6 @@ void runKernelScheduler(cl_command_queue command_queue,
         
         // launch kernel
         cl_event kernelEvent;
-        printf("Command queue:%p\n",command_queue);
         status = clEnqueueNDRangeKernel(
                   command_queue,  scheduler_kernel, 1, 0,
                   &globalWorksize,&localWorksize,

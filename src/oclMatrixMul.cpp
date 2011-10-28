@@ -290,7 +290,6 @@ int runTest()
     setUpScheduler(&cxGPUContext, &commandQueue[0],
                    &schedulerKernel,&setArg_kernel,
                    &setArgGlobalUint_kernel,&setArgGlobalFloat_kernel);
-    printf("Command queue after invocation:%p\n",commandQueue[0]);
     //Get the NVIDIA platform
 //     ciErrNum = oclGetPlatformID(&cpPlatform);
 //     if (ciErrNum != CL_SUCCESS)

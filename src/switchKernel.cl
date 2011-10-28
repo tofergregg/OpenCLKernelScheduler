@@ -1,12 +1,12 @@
 #define LOCALTASKWORKSIZE 256
 
 void dispatch(__global SpoofedId *spoofing,
-              __local WorkItem *next) {
+              __local WorkItem *next, local uint *localMemStart) {
     int localSizeA = next->task->kernelArgs[3].uintArg;
     //int localSizeB = next->task->kernelArgs[4].uintArg;
     
-    __local float *localMemA = next+LOCALTASKWORKSIZE;
-    __local float *localMemB = next+LOCALTASKWORKSIZE+localSizeA;
+    __local float *localMemA = localMemStart+LOCALTASKWORKSIZE;
+    __local float *localMemB = localMemStart+LOCALTASKWORKSIZE+localSizeA;
     
     switch(next->task->kernelId) {
         case 0:
