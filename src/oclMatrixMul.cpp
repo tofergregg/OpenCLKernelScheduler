@@ -25,16 +25,13 @@
  *
  */
 
+// standard utilities and system includes
+//#include <oclUtils.h>
+
 // project include
-#include "oclMatrixMul.h"
 #include "scheduler.h"
 #include "types.h"
-
-enum shrBOOL
-{
-    shrFALSE = 0,
-    shrTRUE = 1
-};
+#include "oclMatrixMul.h"
 
 // max GPU's to manage for multi-GPU parallel compute
 const unsigned int MAX_GPU_COUNT = 1;
@@ -43,16 +40,56 @@ const unsigned int MAX_GPU_COUNT = 1;
 unsigned int uiWA, uiHA, uiWB, uiHB, uiWC, uiHC;
 int iSizeMultiple = 1;
 
+// global variables
+cl_context cxGPUContext=NULL;
+cl_kernel schedulerKernel;
+cl_kernel setArg_kernel=NULL,setArgGlobalUint_kernel=NULL,setArgGlobalFloat_kernel=NULL;
+cl_command_queue commandQueue[MAX_GPU_COUNT];
+
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
-int runTest(cl_context cxGPUContext, cl_command_queue command_queue,
-            cl_kernel setArg_kernel);
-void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C,
-                    cl_context cxGPUContext,cl_command_queue command_queue,cl_kernel setArg_kernel);
+int runTest();
+void printDiff(float*, float*, int, int, int, float);
+void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C );
 
+void computeGold(float*, const float*, const float*, unsigned int, unsigned int, unsigned int);
 
-void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C,
-                    cl_context cxGPUContext,cl_command_queue command_queue, cl_kernel setArg_kernel)
+////////////////////////////////////////////////////////////////////////////////
+// Helper functions
+////////////////////////////////////////////////////////////////////////////////
+
+double executionTime(cl_event &event)
+{
+    cl_ulong start, end;
+    
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL);
+    
+    return (double)1.0e-9 * (end - start); // convert nanoseconds to seconds on return
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Program main
+////////////////////////////////////////////////////////////////////////////////
+int main(int argc, char *argv[])
+{
+    runTest();
+    // start the logs
+    //shrSetLogFileName ("oclMatrixMul.txt");
+    //shrLog("%s Starting...\n\n", argv[0]); 
+
+    // run the code
+//     bool bOK = (runTest(argc, argv) == CL_SUCCESS);
+//     if (bOK) printf("PASSED\n");
+//     else printf("FAILED\n");
+    //shrLog("%s \n\n", (bOK ? "PASSED" : "FAILED"));
+
+    // finish
+    //shrExitEX(argc, argv, (bOK ? EXIT_SUCCESS : EXIT_FAILURE));
+    return 0;
+}
+
+void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C )
 {
     cl_mem d_A[MAX_GPU_COUNT];
     cl_mem d_C[MAX_GPU_COUNT];
@@ -79,7 +116,7 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
         d_A[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY, workSize[i] * sizeof(float) * uiWA, NULL,NULL);
 
         // Copy only assigned rows from host to device
-        clEnqueueCopyBuffer(command_queue, h_A, d_A[i], workOffset[i] * sizeof(float) * uiWA, 
+        clEnqueueCopyBuffer(commandQueue[i], h_A, d_A[i], workOffset[i] * sizeof(float) * uiWA, 
                             0, workSize[i] * sizeof(float) * uiWA, 0, NULL, NULL);        
         
         // create OpenCL buffer on device that will be initiatlize from the host memory on first use
@@ -89,8 +126,21 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
 
         // Output buffer
         d_C[i] = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,  workSize[i] * uiWC * sizeof(float), NULL,NULL);
+//               
+//         // set the args values
+//         clSetKernelArg(multiplicationKernel[i], 0, sizeof(cl_mem), (void *) &d_C[i]);
+//         clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *) &d_A[i]);
+//         clSetKernelArg(multiplicationKernel[i], 2, sizeof(cl_mem), (void *) &d_B[i]);
+//         clSetKernelArg(multiplicationKernel[i], 3, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
+//         clSetKernelArg(multiplicationKernel[i], 4, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
+//         clSetKernelArg(multiplicationKernel[i], 5, sizeof(cl_int), (void *) &uiWA);
+//         clSetKernelArg(multiplicationKernel[i], 6, sizeof(cl_int), (void *) &uiWB);
 
     // Set up Task for this kernel
+    
+        // Execute Multiplication on all GPUs in parallel
+    //size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
+    //size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, uiWC), shrRoundUp(BLOCK_SIZE, workSize[0])};
     
     Task task;
     task.xDim = shrRoundUp(BLOCK_SIZE, uiWC);
@@ -109,7 +159,7 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     status = cl_errChk(status, (char *)"Error allocating taskGPU buffer");
     if(status)exit(1);
 
-    status = clEnqueueWriteBuffer(command_queue,
+    status = clEnqueueWriteBuffer(commandQueue[i],
                taskGPU,
                1, // change to 0 for nonblocking write
                0, // offset
@@ -121,37 +171,40 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
         // set the args values through setArg
     status = cl_errChk(status, (char *)"Error allocating taskGPU buffer");
     if(status)exit(1);
-    
-    //                           taskNum  argIndex,             argSize
-        setArg(command_queue,taskGPU,0,      0,setArg_kernel,sizeof(cl_mem),&d_C[i]);
-        setArg(command_queue,taskGPU,0,      1,setArg_kernel,sizeof(cl_mem),&d_A[i]);
-        setArg(command_queue,taskGPU,0,      2,setArg_kernel,sizeof(cl_mem),&d_B[i]);
-        setArg(command_queue,taskGPU,0,      3,setArg_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
-        setArg(command_queue,taskGPU,0,      4,setArg_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
-        setArg(command_queue,taskGPU,0,      5,setArg_kernel,sizeof(cl_int),&uiWA);
-        setArg(command_queue,taskGPU,0,      6,setArg_kernel,sizeof(cl_int),&uiWB);
-
-//               
-//         // set the args values
-//         clSetKernelArg(multiplicationKernel[i], 0, sizeof(cl_mem), (void *) &d_C[i]);
-//         clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *) &d_A[i]);
-//         clSetKernelArg(multiplicationKernel[i], 2, sizeof(cl_mem), (void *) &d_B[i]);
-//         clSetKernelArg(multiplicationKernel[i], 3, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
-//         clSetKernelArg(multiplicationKernel[i], 4, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
-//         clSetKernelArg(multiplicationKernel[i], 5, sizeof(cl_int), (void *) &uiWA);
-//         clSetKernelArg(multiplicationKernel[i], 6, sizeof(cl_int), (void *) &uiWB);
-// 
-//         if(i+1 < ciDeviceCount)
-//             workOffset[i + 1] = workOffset[i] + workSize[i];
+    int argSetResult = 0;
+//                           taskNum  argIndex,             argSize
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      0,setArg_kernel,sizeof(cl_mem),&d_C[i]);
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      1,setArg_kernel,sizeof(cl_mem),&d_A[i]);
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      2,setArg_kernel,sizeof(cl_mem),&d_B[i]);
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      3,setArg_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      4,setArg_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      5,setArgGlobalUint_kernel,sizeof(cl_int),&uiWA);
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      6,setArgGlobalUint_kernel,sizeof(cl_int),&uiWB);
+        if(i+1 < ciDeviceCount)
+            workOffset[i + 1] = workOffset[i] + workSize[i];
     }
-
     
-    //size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
-    //size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, uiWC), shrRoundUp(BLOCK_SIZE, workSize[0])};
-
-//     
-//     // Launch kernels on devices
+    // Execute Multiplication on all GPUs in parallel
+//     size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
+//     size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, uiWC), shrRoundUp(BLOCK_SIZE, workSize[0])};
+    
+    // Launch kernels on devices
+// #ifdef GPU_PROFILING
+// 	
+// 	int nIter = 30;
 // 
+//     for (int j = -1; j < nIter; j++) 
+//     {
+//         // Sync all queues to host and start timer first time through loop
+//         if(j == 0){
+//             for(unsigned int i = 0; i < ciDeviceCount; i++) 
+//             {
+//                 clFinish(commandQueue[i]);
+//             }
+// 
+//             shrDeltaT(0);
+//         }
+// #endif
 //         for(unsigned int i = 0; i < ciDeviceCount; i++) 
 //         {
 // 			// Multiplication - non-blocking execution:  launch and push to device(s)
@@ -160,45 +213,206 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
 // 				                   0, NULL, &GPUExecution[i]);
 //             clFlush(commandQueue[i]);
 // 		}
+// 
+// #ifdef GPU_PROFILING
+//     }
+// #endif
 
+    // launch kernel scheduler
+    runKernelScheduler(commandQueue[0],schedulerKernel,cxGPUContext,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE*2);
+//     cl_event kernelEvent;
+//     cl_int status = clEnqueueNDRangeKernel(
+//                   commandQueue[0],  schedulerKernel, 1, 0,
+//                   globalWorkSize,localWorkSize,
+//                   0, NULL, &kernelEvent);
 // 
-//     // sync all queues to host
-// 	for(unsigned int i = 0; i < ciDeviceCount; i++) 
-//     {
-// 		clFinish(command_queue);
-// 	}
-// 
-// 
-//     for(unsigned int i = 0; i < ciDeviceCount; i++) 
-//     {    
-//         // Non-blocking copy of result from device to host
-//         clEnqueueReadBuffer(command_queue, d_C[i], CL_FALSE, 0, uiWC * sizeof(float) * workSize[i], 
-//                             h_C + workOffset[i] * uiWC, 0, NULL, &GPUDone[i]);
-//     }
-// 
-// 	// CPU sync with GPU
-//     clWaitForEvents(ciDeviceCount, GPUDone);
-// 
-// 
-//     // Release mem and event objects    
-//     for(unsigned int i = 0; i < ciDeviceCount; i++) 
-//     {
-//         clReleaseMemObject(d_A[i]);
-//         clReleaseMemObject(d_C[i]);
-//         clReleaseMemObject(d_B[i]);
-// 	    clReleaseEvent(GPUExecution[i]);
-// 	    clReleaseEvent(GPUDone[i]);
-//     }
+//     cl_errChk(status,"ERROR in Executing Scheduler Kernel");
+//     clReleaseEvent(kernelEvent);
+
+    // sync all queues to host
+	for(unsigned int i = 0; i < ciDeviceCount; i++) 
+    {
+		clFinish(commandQueue[i]);
+	}
+
+#ifdef GPU_PROFILING
+
+    // stop and log timer 
+    double dSeconds = shrDeltaT(0)/(double)nIter;
+    double dNumOps = 2.0 * (double)uiWA * (double)uiHA * (double)uiWB;
+    double gflops = 1.0e-9 * dNumOps/dSeconds;
+    printfEx(LOGBOTH | MASTER, 0, "oclMatrixMul, Throughput = %.4f GFlops/s, Time = %.5f s, Size = %.0f, NumDevsUsed = %d, Workgroup = %u\n", 
+            gflops, dSeconds, dNumOps, ciDeviceCount, localWorkSize[0] * localWorkSize[1]);
+
+    // Print kernel timing per GPU
+    printf("\n");
+    for(unsigned int i = 0; i < ciDeviceCount; i++) 
+    {    
+        printf("  Kernel execution time on GPU %d \t: %.5f s\n", i, executionTime(GPUExecution[i]));
+    }
+    printf("\n");
+#endif
+
+    for(unsigned int i = 0; i < ciDeviceCount; i++) 
+    {    
+        // Non-blocking copy of result from device to host
+        clEnqueueReadBuffer(commandQueue[i], d_C[i], CL_FALSE, 0, uiWC * sizeof(float) * workSize[i], 
+                            h_C + workOffset[i] * uiWC, 0, NULL, &GPUDone[i]);
+    }
+
+	// CPU sync with GPU
+    clWaitForEvents(ciDeviceCount, GPUDone);
+
+
+    // Release mem and event objects    
+    for(unsigned int i = 0; i < ciDeviceCount; i++) 
+    {
+        clReleaseMemObject(d_A[i]);
+        clReleaseMemObject(d_C[i]);
+        clReleaseMemObject(d_B[i]);
+	    clReleaseEvent(GPUExecution[i]);
+	    clReleaseEvent(GPUDone[i]);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for 
 ////////////////////////////////////////////////////////////////////////////////
-int runTest(cl_context cxGPUContext, cl_command_queue command_queue,
-            cl_kernel setArg_kernel)
+int runTest()
 {
+    //cl_platform_id cpPlatform = NULL;
     cl_uint ciDeviceCount = 0;
+    //cl_device_id *cdDevices = NULL;
     cl_int ciErrNum = CL_SUCCESS;
+
+    // set up kernel scheduler
+    commandQueue[0] = NULL;
+    setUpScheduler(&cxGPUContext, &commandQueue[0],
+                   &schedulerKernel,&setArg_kernel,
+                   &setArgGlobalUint_kernel,&setArgGlobalFloat_kernel);
+    printf("Command queue after invocation:%p\n",commandQueue[0]);
+    //Get the NVIDIA platform
+//     ciErrNum = oclGetPlatformID(&cpPlatform);
+//     if (ciErrNum != CL_SUCCESS)
+//     {
+//         shrLog("Error: Failed to create OpenCL context!\n");
+//         return ciErrNum;
+//     }
+// 
+//     //Get the devices
+//     ciErrNum = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 0, NULL, &ciDeviceCount);
+//     cdDevices = (cl_device_id *)malloc(ciDeviceCount * sizeof(cl_device_id) );
+//     ciErrNum = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, ciDeviceCount, cdDevices, NULL);
+//     if (ciErrNum != CL_SUCCESS)
+//     {
+//         shrLog("Error: Failed to create OpenCL context!\n");
+//         return ciErrNum;
+//     }
+// 
+//     //Create the context
+//     cxGPUContext = clCreateContext(0, ciDeviceCount, cdDevices, NULL, NULL, &ciErrNum);
+//     if (ciErrNum != CL_SUCCESS)
+//     {
+//         shrLog("Error: Failed to create OpenCL context!\n");
+//         return ciErrNum;
+//     }
+// 
+//     if(shrCheckCmdLineFlag(argc, (const char**)argv, "device"))
+//     {
+//         // User specified GPUs
+//         char* deviceList;
+//         char* deviceStr;
+// 
+//         shrGetCmdLineArgumentstr(argc, (const char**)argv, "device", &deviceList);
+// 
+//         #ifdef WIN32
+//             char *next_token;
+//             deviceStr = strtok_s (deviceList," ,.-", &next_token);
+//         #else
+//             deviceStr = strtok (deviceList," ,.-");
+//         #endif   
+//         ciDeviceCount = 0;
+//         while(deviceStr != NULL) 
+//         {
+//             // get and print the device for this queue
+//             cl_device_id device = oclGetDev(cxGPUContext, atoi(deviceStr));
+// 			if( device == (cl_device_id) -1  ) {
+// 				shrLog(" Device %s does not exist!\n", deviceStr);
+// 				return -1;
+// 			}
+// 			
+// 			shrLog("Device %s: ", deviceStr);
+//             oclPrintDevName(LOGBOTH, device);            
+//             shrLog("\n");
+//            
+//             // create command queue
+//             commandQueue[ciDeviceCount] = clCreateCommandQueue(cxGPUContext, device, CL_QUEUE_PROFILING_ENABLE, &ciErrNum);
+//             if (ciErrNum != CL_SUCCESS)
+//             {
+//                 shrLog(" Error %i in clCreateCommandQueue call !!!\n\n", ciErrNum);
+//                 return ciErrNum;
+//             }
+//                 
+//             ++ciDeviceCount;
+// 
+//             #ifdef WIN32
+//                 deviceStr = strtok_s (NULL," ,.-", &next_token);
+//             #else            
+//                 deviceStr = strtok (NULL," ,.-");
+//             #endif
+//         }
+// 
+//         free(deviceList);
+//     } 
+//     else 
+//     {
+//         // Find out how many GPU's to compute on all available GPUs
+// 	    size_t nDeviceBytes;
+// 	    ciErrNum |= clGetContextInfo(cxGPUContext, CL_CONTEXT_DEVICES, 0, NULL, &nDeviceBytes);
+// 	    ciDeviceCount = (cl_uint)nDeviceBytes/sizeof(cl_device_id);
+// 
+//         if (ciErrNum != CL_SUCCESS)
+//         {
+//             shrLog(" Error %i in clGetDeviceIDs call !!!\n\n", ciErrNum);
+//             return ciErrNum;
+//         }
+//         else if (ciDeviceCount == 0)
+//         {
+//             shrLog(" There are no devices supporting OpenCL (return code %i)\n\n", ciErrNum);
+//             return -1;
+//         } 
+// 
+//         // create command-queues
+//         for(unsigned int i = 0; i < ciDeviceCount; ++i) 
+//         {
+//             // get and print the device for this queue
+//             cl_device_id device = oclGetDev(cxGPUContext, i);
+//             shrLog("Device %d: ", i);
+//             oclPrintDevName(LOGBOTH, device);            
+//             shrLog("\n");
+// 
+//             // create command queue
+//             commandQueue[i] = clCreateCommandQueue(cxGPUContext, device, CL_QUEUE_PROFILING_ENABLE, &ciErrNum);
+//             if (ciErrNum != CL_SUCCESS)
+//             {
+//                 shrLog(" Error %i in clCreateCommandQueue call !!!\n\n", ciErrNum);
+//                 return ciErrNum;
+//             }
+//         }
+//     }
+// 
+//     // Optional Command-line multiplier for matrix sizes
+//     shrGetCmdLineArgumenti(argc, (const char**)argv, "sizemult", &iSizeMultiple); 
+    ciDeviceCount = 1;
+    iSizeMultiple = 1;
+    uiWA = WA * iSizeMultiple;
+    uiHA = HA * iSizeMultiple;
+    uiWB = WB * iSizeMultiple;
+    uiHB = HB * iSizeMultiple;
+    uiWC = WC * iSizeMultiple;
+    uiHC = HC * iSizeMultiple;
+    printf("\nUsing Matrix Sizes: A(%u x %u), B(%u x %u), C(%u x %u)\n", 
+            uiWA, uiHA, uiWB, uiHB, uiWC, uiHC);
 
     // allocate host memory for matrices A and B
     unsigned int size_A = uiWA * uiHA;
@@ -226,29 +440,148 @@ int runTest(cl_context cxGPUContext, cl_command_queue command_queue,
         printf("Error: clCreateBuffer\n");
         return ciErrNum;
     }
+// 
+//     // Program Setup
+//     size_t program_length;
+//     const char* header_path = shrFindFilePath("matrixMul.h", argv[0]);
+//     oclCheckError(header_path != NULL, shrTRUE);
+//     char* header = oclLoadProgSource(header_path, "", &program_length);
+//     if(!header)
+//     {
+//         printf("Error: Failed to load the header %s!\n", header_path);
+//         return -1000;
+//     }
+//     const char* source_path = shrFindFilePath("matrixMul.cl", argv[0]);
+//     oclCheckError(source_path != NULL, shrTRUE);
+//     char *source = oclLoadProgSource(source_path, header, &program_length);
+//     if(!source)
+//     {
+//         printf("Error: Failed to load compute program %s!\n", source_path);
+//         return -2000;
+//     }
+// 
+//     // create the program
+//     cl_program cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char **)&source, 
+//                                                     &program_length, &ciErrNum);
+//     if (ciErrNum != CL_SUCCESS)
+//     {
+//         printf("Error: Failed to create program\n");
+//         return ciErrNum;
+//     }
+//     free(header);
+//     free(source);
+//     
+//     // build the program
+//     ciErrNum = clBuildProgram(cpProgram, 0, NULL, "-cl-fast-relaxed-math", NULL, NULL);
+//     if (ciErrNum != CL_SUCCESS)
+//     {
+//         // write out standard error, Build Log and PTX, then return error
+//         shrLogEx(LOGBOTH | ERRORMSG, ciErrNum, STDERROR);
+//         oclLogBuildInfo(cpProgram, oclGetFirstDev(cxGPUContext));
+//         oclLogPtx(cpProgram, oclGetFirstDev(cxGPUContext), "oclMatrixMul.ptx");
+//         return ciErrNum;
+//     }
+// 
+//     // write out PTX if requested on the command line
+//     if(shrCheckCmdLineFlag(argc, argv, "dump-ptx") )
+//     {
+//         oclLogPtx(cpProgram, oclGetFirstDev(cxGPUContext), "oclMatrixMul.ptx");
+//     }
+// 
+//     // Create Kernel
+//     for(unsigned int i = 0; i < ciDeviceCount; ++i) {
+//         multiplicationKernel[i] = clCreateKernel(cpProgram, "matrixMul", &ciErrNum);
+//         if (ciErrNum != CL_SUCCESS)
+//         {
+//             printf("Error: Failed to create kernel\n");
+//             return ciErrNum;
+//         }
+//     }
         
     // Run multiplication on 1..deviceCount GPUs to compare improvement
     printf("\nRunning Computations on 1 - %d GPU's...\n\n", ciDeviceCount);
     for(unsigned int k = 1; k <= ciDeviceCount; ++k) 
     {
-        matrixMulGPU(k, h_A, h_B_data, mem_size_B, h_C,cxGPUContext,command_queue,setArg_kernel);
+        matrixMulGPU(k, h_A, h_B_data, mem_size_B, h_C);
     }
+
+    // compute reference solution
+    printf("Comparing results with CPU computation... \n\n");
+    float* reference = (float*) malloc(mem_size_C);
+    computeGold(reference, h_A_data, h_B_data, uiHA, uiWA, uiWB);
+// 
+//     // check result
+//     shrBOOL res = shrCompareL2fe(reference, h_C, size_C, 1.0e-6f);
+//     if (res != shrTRUE) 
+//     {
+//         printDiff(reference, h_C, uiWC, uiHC, 100, 1.0e-5f);
+//     }
 
     // clean up OCL resources
     ciErrNum = clReleaseMemObject(h_A);
-
-    if(ciErrNum != CL_SUCCESS)
+    for(unsigned int k = 0; k < ciDeviceCount; ++k) 
     {
-        printf("Error: Failure releasing OpenCL resources: %d\n", ciErrNum);
-        return ciErrNum;
+        ciErrNum |= clReleaseKernel( schedulerKernel );
+        ciErrNum |= clReleaseCommandQueue( commandQueue[k] );
     }
+//     ciErrNum |= clReleaseProgram(cpProgram);
+//     ciErrNum |= clReleaseContext(cxGPUContext);
+//     if(ciErrNum != CL_SUCCESS)
+//     {
+//         printf("Error: Failure releasing OpenCL resources: %d\n", ciErrNum);
+//         return ciErrNum;
+//     }
 
     // clean up memory
     free(h_A_data);
     free(h_B_data);
     free(h_C);
+    free(reference);
     
-    return CL_SUCCESS;
+    //return ((shrTRUE == res) ? CL_SUCCESS : -3000);
+    return 0;
+}
+
+// void printDiff(float *data1, float *data2, int width, int height, int iListLength, float fListTol)
+// {
+//     printf("Listing first %d Differences > %.6f...\n", iListLength, fListTol);
+//     int i,j,k;
+//     int error_count=0;
+//     for (j = 0; j < height; j++) 
+//     {
+//         if (error_count < iListLength)
+//         {
+//             printf("\n  Row %d:\n", j);
+//         }
+//         for (i = 0; i < width; i++) 
+//         {
+//             k = j * width + i;
+//             float fDiff = fabs(data1[k] - data2[k]);
+//             if (fDiff > fListTol) 
+//             {                
+//                 if (error_count < iListLength)
+//                 {
+//                     printf("    Loc(%d,%d)\tCPU=%.5f\tGPU=%.5f\tDiff=%.6f\n", i, j, data1[k], data2[k], fDiff);
+//                 }
+//                 error_count++;
+//             }
+//         }
+//     }
+//     printf(" \n  Total Errors = %d\n\n", error_count);
+// }
+void
+computeGold(float* C, const float* A, const float* B, unsigned int hA, unsigned int wA, unsigned int wB)
+{
+    for (unsigned int i = 0; i < hA; ++i)
+        for (unsigned int j = 0; j < wB; ++j) {
+            double sum = 0;
+            for (unsigned int k = 0; k < wA; ++k) {
+                double a = A[i * wA + k];
+                double b = B[k * wB + j];
+                sum += a * b;
+            }
+            C[i * wB + j] = (float)sum;
+        }
 }
 
 // Round Up Division function
@@ -275,3 +608,4 @@ void shrFillArray(float* pfData, int iSize)
         pfData[i] = fScale * rand();
     }
 }
+

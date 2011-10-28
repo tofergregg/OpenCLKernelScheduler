@@ -18,6 +18,8 @@
     #include <CL/opencl.h>
 #endif 
 
+enum { GLOBAL_ARG,LOCAL_ARG };
+
 float *OpenClGaussianElimination(
 	cl_context context,
 	int timing);
@@ -27,13 +29,21 @@ int parseCommandline(int argc, char *argv[], char* filename,
                      int *q, int *t, int *p, int *d);
                      
 float eventTime(cl_event event,cl_command_queue command_queue);
-void runScheduler(cl_context context, int timing);
+void setUpScheduler(cl_context *context,cl_command_queue *command_queue,
+                    cl_kernel *scheduler_kernel, 
+                    cl_kernel *setArg_kernel, cl_kernel *setArgGlobalUint_kernel,
+                    cl_kernel *setArgGlobalFloat_kernel);
 
-void setArg(cl_command_queue command_queue,
+int setArg(cl_command_queue command_queue,
             cl_mem taskGPU,
             int taskNum,
             int argIndex,
             cl_kernel setArg_kernel,
             unsigned int argSize,
             void *argPtr);
+            
+void runKernelScheduler(cl_command_queue command_queue,
+                        cl_kernel scheduler_kernel,
+                        cl_context context,
+                        unsigned int blockSizeExtra);
 #endif

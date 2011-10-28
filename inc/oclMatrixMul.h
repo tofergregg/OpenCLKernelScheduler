@@ -12,8 +12,6 @@
 #ifndef _MATRIXMUL_H_
 #define _MATRIXMUL_H_
 
-#include<string>
-
 // Thread block size
 #define BLOCK_SIZE 16
 
@@ -25,7 +23,6 @@
 #define HB WA  // Matrix B height
 #define WC WB  // Matrix C width 
 #define HC HA  // Matrix C height
-
 size_t shrRoundUp(int group_size, int global_size);
 void shrFillArray(float* pfData, int iSize);
 

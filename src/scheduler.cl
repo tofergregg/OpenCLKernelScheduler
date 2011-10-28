@@ -12,7 +12,8 @@
 #define get_local_size(num)  spoofing[(get_global_id)(0)].localSize[ num ]
 #define get_group_id(num)    spoofing[(get_global_id)(0)].groupId[ num ]
 #define get_num_groups(num)  spoofing[(get_global_id)(0)].numGroups[ num ]
-#include "kernel1.cl"
+#include "matrixMul.cl"
+// #include "kernel1.cl"
 // #include "kernel2"
 #undef get_global_id
 #undef get_local_id
@@ -131,11 +132,11 @@ __kernel void setArg(__global Task *task,
     task[taskNum].kernelArgs[index] = arg;
 }
 
-__kernel void setArgGlobalUint(__global Task *task,
+__kernel void setArgUint(__global Task *task,
                      uint taskNum,
                      uint index,
-                     __global uint *arg) {
-    task[taskNum].kernelArgs[index].globalUintArg = arg;
+                     uint arg) {
+    task[taskNum].kernelArgs[index].uintArg = arg;
 }
 
 __kernel void setArgGlobalFloat(__global Task *task,
@@ -143,6 +144,13 @@ __kernel void setArgGlobalFloat(__global Task *task,
                      uint index,
                      __global float *arg) {
     task[taskNum].kernelArgs[index].globalFloatArg = arg;
+}
+
+__kernel void setArgLocal(__global Task *task,
+                     uint taskNum,
+                     uint index,
+                     uint size) {
+    task[taskNum].kernelArgs[index].uintArg = size;
 }
 
 
