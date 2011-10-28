@@ -43,7 +43,7 @@ int iSizeMultiple = 1;
 // global variables
 cl_context cxGPUContext=NULL;
 cl_kernel schedulerKernel;
-cl_kernel setArg_kernel=NULL,setArgGlobalUint_kernel=NULL,setArgGlobalFloat_kernel=NULL;
+cl_kernel setArg_kernel=NULL,setArgUint_kernel=NULL,setArgGlobalFloat_kernel=NULL,setArgLocal_kernel=NULL;
 cl_command_queue commandQueue[MAX_GPU_COUNT];
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,13 +174,24 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     int argSetResult = 0;
 //                           taskNum  argIndex,             argSize
         argSetResult = setArg(commandQueue[i],taskGPU,0,      0,setArg_kernel,sizeof(cl_mem),&d_C[i]);
+
+       printf("arg0\n");
         argSetResult = setArg(commandQueue[i],taskGPU,0,      1,setArg_kernel,sizeof(cl_mem),&d_A[i]);
+       printf("arg1\n");
+
         argSetResult = setArg(commandQueue[i],taskGPU,0,      2,setArg_kernel,sizeof(cl_mem),&d_B[i]);
-        argSetResult = setArg(commandQueue[i],taskGPU,0,      3,setArg_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
-        argSetResult = setArg(commandQueue[i],taskGPU,0,      4,setArg_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
-        argSetResult = setArg(commandQueue[i],taskGPU,0,      5,setArgGlobalUint_kernel,sizeof(cl_int),&uiWA);
-        argSetResult = setArg(commandQueue[i],taskGPU,0,      6,setArgGlobalUint_kernel,sizeof(cl_int),&uiWB);
-        if(i+1 < ciDeviceCount)
+       printf("arg2\n");
+
+        argSetResult = setArg(commandQueue[i],taskGPU,0,      3,setArgLocal_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
+              printf("arg3\n");
+
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      4,setArgLocal_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
+       printf("arg4\n");
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      5,setArgUint_kernel,sizeof(cl_int),&uiWA);
+       printf("arg5\n");
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      6,setArgUint_kernel,sizeof(cl_int),&uiWB);
+       printf("arg6\n");
+       if(i+1 < ciDeviceCount)
             workOffset[i + 1] = workOffset[i] + workSize[i];
     }
     
@@ -289,7 +300,8 @@ int runTest()
     commandQueue[0] = NULL;
     setUpScheduler(&cxGPUContext, &commandQueue[0],
                    &schedulerKernel,&setArg_kernel,
-                   &setArgGlobalUint_kernel,&setArgGlobalFloat_kernel);
+                   &setArgUint_kernel,&setArgGlobalFloat_kernel,
+                   &setArgLocal_kernel);
     //Get the NVIDIA platform
 //     ciErrNum = oclGetPlatformID(&cpPlatform);
 //     if (ciErrNum != CL_SUCCESS)

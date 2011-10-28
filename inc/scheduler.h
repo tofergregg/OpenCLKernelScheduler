@@ -32,7 +32,8 @@ float eventTime(cl_event event,cl_command_queue command_queue);
 void setUpScheduler(cl_context *context,cl_command_queue *command_queue,
                     cl_kernel *scheduler_kernel, 
                     cl_kernel *setArg_kernel, cl_kernel *setArgGlobalUint_kernel,
-                    cl_kernel *setArgGlobalFloat_kernel);
+                    cl_kernel *setArgGlobalFloat_kernel,
+                    cl_kernel *setArgLocal_kernel);
 
 int setArg(cl_command_queue command_queue,
             cl_mem taskGPU,

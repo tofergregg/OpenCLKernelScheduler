@@ -37,8 +37,10 @@ int mainOLD(int argc, char *argv[]) {
     cl_context context=NULL;
     cl_command_queue command_queue = NULL;
     cl_kernel scheduler_kernel, setArg_kernel, setArgUint_kernel,setArgGlobalFloat_kernel;
+    cl_kernel setArgLocal_kernel;
     setUpScheduler(&context, &command_queue, &scheduler_kernel, 
-                   &setArg_kernel,&setArgUint_kernel,&setArgGlobalFloat_kernel);
+                   &setArg_kernel,&setArgUint_kernel,&setArgGlobalFloat_kernel,
+                   &setArgLocal_kernel);
     
     //end timing
 //     if (!quiet) {
@@ -64,7 +66,8 @@ int mainOLD(int argc, char *argv[]) {
  */
 void setUpScheduler(cl_context *context,cl_command_queue *command_queue,
                     cl_kernel *scheduler_kernel, cl_kernel *setArg_kernel,
-                    cl_kernel *setArgUint_kernel, cl_kernel *setArgGlobalFloat_kernel){
+                    cl_kernel *setArgUint_kernel, cl_kernel *setArgGlobalFloat_kernel,
+                    cl_kernel *setArgLocal_kernel){
     // 1. set up kernels
     cl_int status=0;
     cl_program scheduler_program;
@@ -99,6 +102,11 @@ void setUpScheduler(cl_context *context,cl_command_queue *command_queue,
     *setArgGlobalFloat_kernel = clCreateKernel(
         scheduler_program, "setArgGlobalFloat", &status);
     status = cl_errChk(status, (char *)"Error Creating setArg kernel");
+    if(status)exit(1);   
+    
+    *setArgLocal_kernel = clCreateKernel(
+        scheduler_program, "setArgLocal", &status);
+    status = cl_errChk(status, (char *)"Error Creating setArg Local kernel");
     if(status)exit(1);    
         
 //     logInfoGPU = clCreateBuffer(*context, CL_MEM_READ_WRITE,
@@ -257,14 +265,18 @@ int setArg(cl_command_queue command_queue,
 
     cl_int argchk = 0;
     argchk  = clSetKernelArg(setArg_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
+    printf("tried to set arg 0,argchk:%d\n",argchk);
     argchk |= clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
+    printf("tried to set arg 1,argchk:%d\n",argchk);
     argchk |= clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
-    
+    printf("tried to set arg 2,argchk:%d\n",argchk);
     if (argPtr == NULL) { // local memory argument
-        argchk |= clSetKernelArg(setArg_kernel, 3, sizeof(unsigned int), (void *)&argSize);
+        argchk |= clSetKernelArg(setArg_kernel, 3, sizeof(unsigned int), &argSize);
+        printf("tried to set arg 3a,argchk:%d,argSize:%d\n",argchk,argSize);
     }
     else {
         argchk |= clSetKernelArg(setArg_kernel, 3, argSize, argPtr);
+        printf("tried to set arg 3b,argchk:%d\n",argchk);
     }
 
     if (argchk) {
