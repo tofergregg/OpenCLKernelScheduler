@@ -265,18 +265,13 @@ int setArg(cl_command_queue command_queue,
 
     cl_int argchk = 0;
     argchk  = clSetKernelArg(setArg_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
-    printf("tried to set arg 0,argchk:%d\n",argchk);
     argchk |= clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
-    printf("tried to set arg 1,argchk:%d\n",argchk);
     argchk |= clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
-    printf("tried to set arg 2,argchk:%d\n",argchk);
     if (argPtr == NULL) { // local memory argument
         argchk |= clSetKernelArg(setArg_kernel, 3, sizeof(unsigned int), &argSize);
-        printf("tried to set arg 3a,argchk:%d,argSize:%d\n",argchk,argSize);
     }
     else {
         argchk |= clSetKernelArg(setArg_kernel, 3, argSize, argPtr);
-        printf("tried to set arg 3b,argchk:%d\n",argchk);
     }
 
     if (argchk) {
