@@ -29,6 +29,7 @@
 //#include <oclUtils.h>
 
 // project include
+#include <math.h>
 #include "scheduler.h"
 #include "types.h"
 #include "oclMatrixMul.h"
@@ -37,20 +38,21 @@
 const unsigned int MAX_GPU_COUNT = 1;
 
 // Globals for size of matrices
-unsigned int uiWA, uiHA, uiWB, uiHB, uiWC, uiHC;
+unsigned int uiHA, uiHB, uiWC, uiHC;
+cl_uint uiWA, uiWB;
 int iSizeMultiple = 1;
 
 // global variables
 cl_context cxGPUContext=NULL;
 cl_kernel schedulerKernel;
-cl_kernel setArg_kernel=NULL,setArgUint_kernel=NULL,setArgGlobalFloat_kernel=NULL,setArgLocal_kernel=NULL;
+cl_kernel setArg_kernel=NULL,setArgGlobalUint_kernel=NULL,setArgGlobalFloat_kernel=NULL,setArgLocal_kernel=NULL;
 cl_command_queue commandQueue[MAX_GPU_COUNT];
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
 int runTest();
 void printDiff(float*, float*, int, int, int, float);
-void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C );
+void matrixMulGPU(cl_uint ciDeviceCount, float *h_A_data, float* h_B_data, unsigned int mem_size_B, float* h_C );
 
 void computeGold(float*, const float*, const float*, unsigned int, unsigned int, unsigned int);
 
@@ -89,7 +91,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C )
+void matrixMulGPU(cl_uint ciDeviceCount, float *h_A_data, float* h_B_data, unsigned int mem_size_B, float* h_C )
 {
     cl_mem d_A[MAX_GPU_COUNT];
     cl_mem d_C[MAX_GPU_COUNT];
@@ -108,16 +110,16 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     int workSize[MAX_GPU_COUNT];
 
     workOffset[0] = 0;
-    for(unsigned int i=0; i < ciDeviceCount; ++i) 
-    {
+    int i=0;
         // Input buffer
         workSize[i] = (i != (ciDeviceCount - 1)) ? sizePerGPU : (uiHA - workOffset[i]);        
 
-        d_A[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY, workSize[i] * sizeof(float) * uiWA, NULL,NULL);
+        d_A[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+                workSize[i] * sizeof(float) * uiWA, h_A_data ,NULL);
 
         // Copy only assigned rows from host to device
-        clEnqueueCopyBuffer(commandQueue[i], h_A, d_A[i], workOffset[i] * sizeof(float) * uiWA, 
-                            0, workSize[i] * sizeof(float) * uiWA, 0, NULL, NULL);        
+        //clEnqueueCopyBuffer(commandQueue[i], h_A, d_A[i], workOffset[i] * sizeof(float) * uiWA, 
+        //                    0, workSize[i] * sizeof(float) * uiWA, 0, NULL, NULL);          
         
         // create OpenCL buffer on device that will be initiatlize from the host memory on first use
         // on device
@@ -143,9 +145,11 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     //size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, uiWC), shrRoundUp(BLOCK_SIZE, workSize[0])};
     
     Task task;
-    task.xDim = shrRoundUp(BLOCK_SIZE, uiWC);
-    task.yDim = shrRoundUp(BLOCK_SIZE, workSize[0]);
+    task.xDim = shrRoundUp(BLOCK_SIZE, uiWC)/BLOCK_SIZE;
+    task.yDim = shrRoundUp(BLOCK_SIZE, workSize[0])/BLOCK_SIZE;
     task.workgroupsLeft = task.xDim * task.yDim;
+    printf("xDim:%d,yDim:%d,uiWC:%d,workSize[0]:%d\n",task.xDim,task.yDim,uiWC,workSize[0]);
+    printf("task.workgroupsLeft:%d\n",task.workgroupsLeft);
     task.xThreads = BLOCK_SIZE;
     task.yThreads = BLOCK_SIZE;
     task.kernelId = 0;
@@ -172,18 +176,35 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     status = cl_errChk(status, (char *)"Error allocating taskGPU buffer");
     if(status)exit(1);
     int argSetResult = 0;
-//                           taskNum  argIndex,             argSize
-       argSetResult = setArg(commandQueue[i],taskGPU,0,      0,setArg_kernel,sizeof(cl_mem),&d_C[i]);
-       argSetResult = setArg(commandQueue[i],taskGPU,0,      1,setArg_kernel,sizeof(cl_mem),&d_A[i]);
-       argSetResult = setArg(commandQueue[i],taskGPU,0,      2,setArg_kernel,sizeof(cl_mem),&d_B[i]);
+//                                              taskNum  argIndex,             argSize
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      0,setArgGlobalFloat_kernel,sizeof(cl_mem),&d_C[i]);
+       //printf("0,%d\n",argSetResult);
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      1,setArgGlobalFloat_kernel,sizeof(cl_mem),&d_A[i]);
+       //printf("1,%d\n",argSetResult);
+
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      2,setArgGlobalFloat_kernel,sizeof(cl_mem),&d_B[i]);
+       //printf("2,%d\n",argSetResult);
+
        argSetResult = setArg(commandQueue[i],taskGPU,0,      3,setArgLocal_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
+       //printf("3,%d\n",argSetResult);
+
        argSetResult = setArg(commandQueue[i],taskGPU,0,      4,setArgLocal_kernel,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE,0);
-       argSetResult = setArg(commandQueue[i],taskGPU,0,      5,setArgUint_kernel,sizeof(cl_int),&uiWA);
-       argSetResult = setArg(commandQueue[i],taskGPU,0,      6,setArgUint_kernel,sizeof(cl_int),&uiWB);
+       //printf("4,%d\n",argSetResult);
+
+
+       ArgType argA,argB;
+       
+       argA.uintArg = uiWA;
+       argB.uintArg = uiWB;
+       
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      5,setArg_kernel,sizeof(ArgType),&argA);
+       //printf("5,%d\n",argSetResult);
+
+       argSetResult = setArg(commandQueue[i],taskGPU,0,      6,setArg_kernel,sizeof(ArgType),&argB);
+       //printf("6,%d\n",argSetResult);
+
        if(i+1 < ciDeviceCount)
-            workOffset[i + 1] = workOffset[i] + workSize[i];
-    }
-    
+            workOffset[i + 1] = workOffset[i] + workSize[i];    
     // Execute Multiplication on all GPUs in parallel
 //     size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
 //     size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, uiWC), shrRoundUp(BLOCK_SIZE, workSize[0])};
@@ -219,7 +240,8 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
 // #endif
 
     // launch kernel scheduler
-    runKernelScheduler(commandQueue[0],schedulerKernel,cxGPUContext,sizeof(float)*BLOCK_SIZE*BLOCK_SIZE*2);
+    runKernelScheduler(commandQueue[0],schedulerKernel,cxGPUContext,
+                        taskGPU,task.workgroupsLeft);
 //     cl_event kernelEvent;
 //     cl_int status = clEnqueueNDRangeKernel(
 //                   commandQueue[0],  schedulerKernel, 1, 0,
@@ -252,7 +274,6 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     }
     printf("\n");
 #endif
-
     for(unsigned int i = 0; i < ciDeviceCount; i++) 
     {    
         // Non-blocking copy of result from device to host
@@ -270,7 +291,7 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
         clReleaseMemObject(d_A[i]);
         clReleaseMemObject(d_C[i]);
         clReleaseMemObject(d_B[i]);
-	    clReleaseEvent(GPUExecution[i]);
+	    //clReleaseEvent(GPUExecution[i]);
 	    clReleaseEvent(GPUDone[i]);
     }
 }
@@ -289,7 +310,7 @@ int runTest()
     commandQueue[0] = NULL;
     setUpScheduler(&cxGPUContext, &commandQueue[0],
                    &schedulerKernel,&setArg_kernel,
-                   &setArgUint_kernel,&setArgGlobalFloat_kernel,
+                   &setArgGlobalUint_kernel,&setArgGlobalFloat_kernel,
                    &setArgLocal_kernel);
     //Get the NVIDIA platform
 //     ciErrNum = oclGetPlatformID(&cpPlatform);
@@ -502,20 +523,23 @@ int runTest()
     printf("\nRunning Computations on 1 - %d GPU's...\n\n", ciDeviceCount);
     for(unsigned int k = 1; k <= ciDeviceCount; ++k) 
     {
-        matrixMulGPU(k, h_A, h_B_data, mem_size_B, h_C);
+        matrixMulGPU(k, h_A_data, h_B_data, mem_size_B, h_C);
     }
 
     // compute reference solution
     printf("Comparing results with CPU computation... \n\n");
     float* reference = (float*) malloc(mem_size_C);
     computeGold(reference, h_A_data, h_B_data, uiHA, uiWA, uiWB);
-// 
-//     // check result
-//     shrBOOL res = shrCompareL2fe(reference, h_C, size_C, 1.0e-6f);
-//     if (res != shrTRUE) 
-//     {
-//         printDiff(reference, h_C, uiWC, uiHC, 100, 1.0e-5f);
-//     }
+    
+    
+    
+
+    // check result
+    bool res = shrCompareL2fe(reference, h_C, size_C, 1.0e-6f);
+    if (res != true) 
+    {
+        //printDiff(reference, h_C, uiWC, uiHC, 100, 1.0e-5f);
+    }
 
     // clean up OCL resources
     ciErrNum = clReleaseMemObject(h_A);
@@ -542,33 +566,33 @@ int runTest()
     return 0;
 }
 
-// void printDiff(float *data1, float *data2, int width, int height, int iListLength, float fListTol)
-// {
-//     printf("Listing first %d Differences > %.6f...\n", iListLength, fListTol);
-//     int i,j,k;
-//     int error_count=0;
-//     for (j = 0; j < height; j++) 
-//     {
-//         if (error_count < iListLength)
-//         {
-//             printf("\n  Row %d:\n", j);
-//         }
-//         for (i = 0; i < width; i++) 
-//         {
-//             k = j * width + i;
-//             float fDiff = fabs(data1[k] - data2[k]);
-//             if (fDiff > fListTol) 
-//             {                
-//                 if (error_count < iListLength)
-//                 {
-//                     printf("    Loc(%d,%d)\tCPU=%.5f\tGPU=%.5f\tDiff=%.6f\n", i, j, data1[k], data2[k], fDiff);
-//                 }
-//                 error_count++;
-//             }
-//         }
-//     }
-//     printf(" \n  Total Errors = %d\n\n", error_count);
-// }
+void printDiff(float *data1, float *data2, int width, int height, int iListLength, float fListTol)
+{
+    printf("Listing first %d Differences > %.6f...\n", iListLength, fListTol);
+    int i,j,k;
+    int error_count=0;
+    for (j = 0; j < height; j++) 
+    {
+        if (error_count < iListLength)
+        {
+            printf("\n  Row %d:\n", j);
+        }
+        for (i = 0; i < width; i++) 
+        {
+            k = j * width + i;
+            float fDiff = fabs(data1[k] - data2[k]);
+            if (fDiff > fListTol) 
+            {                
+                if (error_count < iListLength)
+                {
+                    printf("    Loc(%d,%d)\tCPU=%.5f\tGPU=%.5f\tDiff=%.6f\n", i, j, data1[k], data2[k], fDiff);
+                }
+                error_count++;
+            }
+        }
+    }
+    printf(" \n  Total Errors = %d\n\n", error_count);
+}
 void
 computeGold(float* C, const float* A, const float* B, unsigned int hA, unsigned int wA, unsigned int wB)
 {
@@ -608,4 +632,11 @@ void shrFillArray(float* pfData, int iSize)
         pfData[i] = fScale * rand();
     }
 }
+
+bool shrCompareL2fe(float *reference, float *h_C, unsigned int size_C, float epsilon){
+    for(unsigned int i=0;i<size_C;i++)
+        if (fabs(reference[i] - h_C[i]) > epsilon) return false;
+    return true;
+}
+
 

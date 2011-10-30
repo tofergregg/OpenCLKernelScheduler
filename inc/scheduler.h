@@ -46,5 +46,6 @@ int setArg(cl_command_queue command_queue,
 void runKernelScheduler(cl_command_queue command_queue,
                         cl_kernel scheduler_kernel,
                         cl_context context,
-                        unsigned int blockSizeExtra);
+                        cl_mem taskGPU,
+                        int totalBlocks);
 #endif

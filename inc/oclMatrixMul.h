@@ -25,6 +25,7 @@
 #define HC HA  // Matrix C height
 size_t shrRoundUp(int group_size, int global_size);
 void shrFillArray(float* pfData, int iSize);
+bool shrCompareL2fe(float *reference, float *h_C, unsigned int size_C, float epsilon);
 
 #endif // _MATRIXMUL_H_
 

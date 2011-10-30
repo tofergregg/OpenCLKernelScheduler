@@ -18,8 +18,8 @@ void dispatch(__global SpoofedId *spoofing,
                       task->kernelArgs[2].globalFloatArg,
                       localMemA,
                       localMemB,
-	                  task->kernelArgs[5].globalUintArg,
-	                  task->kernelArgs[6].globalUintArg,
+	                  task->kernelArgs[5].uintArg,
+	                  task->kernelArgs[6].uintArg,
 	                  spoofing);
             break;
     }

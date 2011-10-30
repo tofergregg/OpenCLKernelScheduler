@@ -43,7 +43,6 @@ __kernel void scheduler(__global Task *queue,
     size_t localId = get_local_id(0);
     
     WorkItem workItems[MAXTASKS];
-    
     if (localId == 0) {
         sharedMem[0] = getWork(queue,
                                queueSize,
@@ -108,8 +107,11 @@ unsigned int getWork(__global Task *queue,
         unsigned int workgroupsGrabbed = min(task->workgroupsLeft,numberOfTasksToExecute);
         for (unsigned int workgroup = 0; workgroup < workgroupsGrabbed; workgroup++) {
             unsigned int workgroupId = task->workgroupsLeft - workgroup - 1;
+            //printf("workgroupId:%d,task->xDim:%d\n",workgroupId,task->xDim);
             workItem[index].x = workgroupId % task->xDim;
             workItem[index].y = workgroupId / task->xDim;
+            //printf("next->y:%d\n",workItem[index].y);
+
             workItem[index].z = 1;
             workItem[index].task = task;
             index++;
@@ -132,11 +134,11 @@ __kernel void setArg(__global Task *task,
     task[taskNum].kernelArgs[index] = arg;
 }
 
-__kernel void setArgUint(__global Task *task,
+__kernel void setArgGlobalUint(__global Task *task,
                      uint taskNum,
                      uint index,
-                     uint arg) {
-    task[taskNum].kernelArgs[index].uintArg = arg;
+                     global uint *arg) {
+    task[taskNum].kernelArgs[index].globalUintArg = arg;
 }
 
 __kernel void setArgGlobalFloat(__global Task *task,

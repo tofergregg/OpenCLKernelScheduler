@@ -1,3 +1,4 @@
+#pragma OPENCL EXTENSION cl_amd_printf : enable
 /*
  * Copyright 1993-2010 NVIDIA Corporation.  All rights reserved.
  *
@@ -101,6 +102,7 @@ matrixMul( float* C, float* A, float* B, int wA, int wB)
     // each thread writes one element
     int c = wB * BLOCK_SIZE * by + BLOCK_SIZE * bx;
     C[c + wB * ty + tx] = Csub;
+    printf("Csub: %f\n",C[c + wB * ty + tx]);
 }
 
 #endif // #ifndef _MATRIXMUL_KERNEL_H_

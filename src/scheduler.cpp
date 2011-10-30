@@ -36,10 +36,10 @@ int mainOLD(int argc, char *argv[]) {
     // run scheduler
     cl_context context=NULL;
     cl_command_queue command_queue = NULL;
-    cl_kernel scheduler_kernel, setArg_kernel, setArgUint_kernel,setArgGlobalFloat_kernel;
+    cl_kernel scheduler_kernel, setArg_kernel, setArgGlobalUint_kernel,setArgGlobalFloat_kernel;
     cl_kernel setArgLocal_kernel;
     setUpScheduler(&context, &command_queue, &scheduler_kernel, 
-                   &setArg_kernel,&setArgUint_kernel,&setArgGlobalFloat_kernel,
+                   &setArg_kernel,&setArgGlobalUint_kernel,&setArgGlobalFloat_kernel,
                    &setArgLocal_kernel);
     
     //end timing
@@ -66,7 +66,7 @@ int mainOLD(int argc, char *argv[]) {
  */
 void setUpScheduler(cl_context *context,cl_command_queue *command_queue,
                     cl_kernel *scheduler_kernel, cl_kernel *setArg_kernel,
-                    cl_kernel *setArgUint_kernel, cl_kernel *setArgGlobalFloat_kernel,
+                    cl_kernel *setArgGlobalUint_kernel, cl_kernel *setArgGlobalFloat_kernel,
                     cl_kernel *setArgLocal_kernel){
     // 1. set up kernels
     cl_int status=0;
@@ -94,8 +94,8 @@ void setUpScheduler(cl_context *context,cl_command_queue *command_queue,
     status = cl_errChk(status, (char *)"Error Creating setArg kernel");
     if(status)exit(1);
     
-    *setArgUint_kernel = clCreateKernel(
-        scheduler_program, "setArgUint", &status);
+    *setArgGlobalUint_kernel = clCreateKernel(
+        scheduler_program, "setArgGlobalUint", &status);
     status = cl_errChk(status, (char *)"Error Creating setArg kernel");
     if(status)exit(1);
     
@@ -265,17 +265,29 @@ int setArg(cl_command_queue command_queue,
 
     cl_int argchk = 0;
     argchk  = clSetKernelArg(setArg_kernel, 0, sizeof(cl_mem), (void *)&taskGPU);
-    argchk |= clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
-    argchk |= clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
+        if (argchk) {
+        cl_errChk(argchk,"ERROR in Setting SetArg kernel args 0");
+        return argchk;
+    }
+    argchk = clSetKernelArg(setArg_kernel, 1, sizeof(unsigned int), &taskNum);
+        if (argchk) {
+        cl_errChk(argchk,"ERROR in Setting SetArg kernel args 1");
+        return argchk;
+    }
+    argchk = clSetKernelArg(setArg_kernel, 2, sizeof(unsigned int), &argIndex);
+    if (argchk) {
+        cl_errChk(argchk,"ERROR in Setting SetArg kernel args 2");
+        return argchk;
+    }
     if (argPtr == NULL) { // local memory argument
-        argchk |= clSetKernelArg(setArg_kernel, 3, sizeof(unsigned int), &argSize);
+        argchk = clSetKernelArg(setArg_kernel, 3, sizeof(unsigned int), &argSize);
     }
     else {
-        argchk |= clSetKernelArg(setArg_kernel, 3, argSize, argPtr);
+        argchk = clSetKernelArg(setArg_kernel, 3, argSize, argPtr);
     }
 
     if (argchk) {
-        cl_errChk(argchk,"ERROR in Setting SetArg kernel args");
+        cl_errChk(argchk,"ERROR in Setting SetArg kernel args 3");
         return argchk;
     }
     
@@ -291,15 +303,11 @@ int setArg(cl_command_queue command_queue,
 void runKernelScheduler(cl_command_queue command_queue,
                         cl_kernel scheduler_kernel,
                         cl_context context,
-                        unsigned int blockSizeExtra){
+                        cl_mem taskGPU,
+                        int totalBlocks){
     unsigned lockInit = 0;
-    cl_mem taskGPU,lockGPU,spoofingGPU;
+    cl_mem lockGPU,spoofingGPU;
     cl_int status=0;
-
-    taskGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
-        sizeof(Task), NULL, &status);
-    status = cl_errChk(status, (char *)"Error allocating taskGPU buffer");
-    if(status)exit(1);
         
     lockGPU = clCreateBuffer(context, CL_MEM_READ_WRITE,
         sizeof(unsigned int), NULL, &status);
@@ -331,16 +339,39 @@ void runKernelScheduler(cl_command_queue command_queue,
         argchk  = clSetKernelArg(scheduler_kernel, 1, sizeof(unsigned int), &queueSize);
         argchk  = clSetKernelArg(scheduler_kernel, 2, sizeof(unsigned int), &numberOfTasksToExecute);
         argchk  = clSetKernelArg(scheduler_kernel, 3, sizeof(cl_mem), (void *)&lockGPU);
-        argchk  = clSetKernelArg(scheduler_kernel, 4, sizeof(unsigned int)*localWorksize+blockSizeExtra, NULL);
+        argchk  = clSetKernelArg(scheduler_kernel, 4, 2048, NULL);
         argchk  = clSetKernelArg(scheduler_kernel, 5, sizeof(cl_mem), (void *)&spoofingGPU);
+        
+        cl_ulong totalKernelTime = 0;
         
         // launch kernel
         cl_event kernelEvent;
-        status = clEnqueueNDRangeKernel(
-                  command_queue,  scheduler_kernel, 1, 0,
-                  &globalWorksize,&localWorksize,
-                  0, NULL, &kernelEvent);
+        cl_ulong beginKTime,endKTime;
+        for (int kernelLoop=totalBlocks;kernelLoop>0;kernelLoop-=32) {
+            status = clEnqueueNDRangeKernel(
+                      command_queue,  scheduler_kernel, 1, 0,
+                      &globalWorksize,&localWorksize,
+                      0, NULL, &kernelEvent);
+            clFinish (command_queue);
+            status = clGetEventProfilingInfo (kernelEvent,
+                                    CL_PROFILING_COMMAND_START,
+                                    sizeof(cl_ulong),
+                                    &beginKTime,
+                                    NULL);
+            status = cl_errChk(status, (char *)"Error with profiling begin");
+            
+            
+            clGetEventProfilingInfo (kernelEvent,
+                                    CL_PROFILING_COMMAND_START,
+                                    sizeof(cl_ulong),
+                                    &endKTime,
+                                    NULL);
+            totalKernelTime+= (endKTime - beginKTime);
+            status = cl_errChk(status, (char *)"Error with profiling end");
 
+
+        }
+        printf("Total kernel time: %ld\n",totalKernelTime);
         cl_errChk(status,"ERROR in Executing Scheduler Kernel");
        
         clReleaseEvent(kernelEvent);

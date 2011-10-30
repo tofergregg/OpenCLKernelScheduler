@@ -1,3 +1,4 @@
+#pragma OPENCL EXTENSION cl_amd_printf : enable
 /*
  * Copyright 1993-2010 NVIDIA Corporation.  All rights reserved.
  *
@@ -26,6 +27,7 @@ matrixMul( __global float* C, __global float* A, __global float* B,
 	   __local float* As, __local float* Bs, int uiWA, int uiWB,
 	   __global SpoofedId *spoofing)
 {
+    //printf("A[0]:%f\n",A[0]);
     // Block index
     int bx = get_group_id(0);
     int by = get_group_id(1);
@@ -36,6 +38,7 @@ matrixMul( __global float* C, __global float* A, __global float* B,
 
     // Index of the first sub-matrix of A processed by the block
     int aBegin = uiWA * BLOCK_SIZE * by;
+    //printf("aBegin:%d,uiWA:%d,BLOCK_SIZE:%d,by:%d\n",aBegin,uiWA,BLOCK_SIZE,by);
 
     // Index of the last sub-matrix of A processed by the block
     int aEnd   = aBegin + uiWA - 1;
@@ -63,7 +66,9 @@ matrixMul( __global float* C, __global float* A, __global float* B,
         // to shared memory; each thread loads
         // one element of each matrix
         AS(ty, tx) = A[a + uiWA * ty + tx];
+        //if (a < 25000) printf("a:%d,uiWA:%d,ty:%d,tx:%d,A[a + uiWA * ty + tx]:%f\n",a,uiWA,ty,tx,A[a + uiWA * ty + tx]);
         BS(ty, tx) = B[b + uiWB * ty + tx];
+        //printf("AS(%d,%d):%f,BS(%d%d):%f\n",ty,tx,AS(ty,tx),ty,tx,BS(ty,tx));
 	
         // Synchronize to make sure the matrices are loaded
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -84,6 +89,7 @@ matrixMul( __global float* C, __global float* A, __global float* B,
     // Write the block sub-matrix to device memory;
     // each thread writes one element
     C[get_global_id(1) * get_global_size(0) + get_global_id(0)] = Csub;
+    //printf("Csub:%f\n",C[get_global_id(1) * get_global_size(0) + get_global_id(0)]);
 
 }
 
