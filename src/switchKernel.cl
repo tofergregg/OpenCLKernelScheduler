@@ -1,23 +1,25 @@
-#define LOCALTASKWORKSIZE 256
+#define BLOCK_SIZE 16
 
 void dispatch(__global SpoofedId *spoofing,
-              __local WorkItem *next, local uint *localMemStart) {
-    int localSizeA = next->task->kernelArgs[3].uintArg;
-    //int localSizeB = next->task->kernelArgs[4].uintArg;
+              __local WorkItem *next) {
+    __global Task *task = task;
     
-    __local float *localMemA = localMemStart+LOCALTASKWORKSIZE;
-    __local float *localMemB = localMemStart+LOCALTASKWORKSIZE+localSizeA;
+    int localSizeA = task->kernelArgs[3].uintArg;
+    //int localSizeB = task->kernelArgs[4].uintArg;
     
-    switch(next->task->kernelId) {
+    __local__ float *localMemA = (__local float *)next;
+    __local float *localMemB = localMemA + BLOCK_SIZE * BLOCK_SIZE;
+    
+    switch(task->kernelId) {
         case 0:
-            //kernel1(next->task->kernelArgs[0].globalUintArg,spoofing);
-            matrixMul(next->task->kernelArgs[0].globalFloatArg, 
-                      next->task->kernelArgs[1].globalFloatArg,
-                      next->task->kernelArgs[2].globalFloatArg,
+            //kernel1(task->kernelArgs[0].globalUintArg,spoofing);
+            matrixMul(task->kernelArgs[0].globalFloatArg, 
+                      task->kernelArgs[1].globalFloatArg,
+                      task->kernelArgs[2].globalFloatArg,
                       localMemA,
                       localMemB,
-	                  next->task->kernelArgs[5].globalUintArg,
-	                  next->task->kernelArgs[6].globalUintArg,
+	                  task->kernelArgs[5].globalUintArg,
+	                  task->kernelArgs[6].globalUintArg,
 	                  spoofing);
             break;
     }

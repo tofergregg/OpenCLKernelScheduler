@@ -85,7 +85,7 @@ __kernel void scheduler(__global Task *queue,
         spoofing[globalId].numGroups[2] = 1;
         
         if(next->task->xThreads * next->task->yThreads > get_local_id(0)){
-            dispatch(spoofing,next,sharedMem);
+            dispatch(spoofing,next);
         }
     }
 }
