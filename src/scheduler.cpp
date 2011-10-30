@@ -362,19 +362,16 @@ void runKernelScheduler(cl_command_queue command_queue,
             
             
             clGetEventProfilingInfo (kernelEvent,
-                                    CL_PROFILING_COMMAND_START,
+                                    CL_PROFILING_COMMAND_END,
                                     sizeof(cl_ulong),
                                     &endKTime,
                                     NULL);
             totalKernelTime+= (endKTime - beginKTime);
             status = cl_errChk(status, (char *)"Error with profiling end");
-
-
+            clReleaseEvent(kernelEvent);
         }
         printf("Total kernel time: %ld\n",totalKernelTime);
         cl_errChk(status,"ERROR in Executing Scheduler Kernel");
-       
-        clReleaseEvent(kernelEvent);
     
 }
 
