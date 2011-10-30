@@ -2,12 +2,12 @@
 
 void dispatch(__global SpoofedId *spoofing,
               __local WorkItem *next) {
-    __global Task *task = task;
+    __global Task *task = next->task;
     
     int localSizeA = task->kernelArgs[3].uintArg;
     //int localSizeB = task->kernelArgs[4].uintArg;
     
-    __local__ float *localMemA = (__local float *)next;
+    __local float *localMemA = (__local float *)next;
     __local float *localMemB = localMemA + BLOCK_SIZE * BLOCK_SIZE;
     
     switch(task->kernelId) {
