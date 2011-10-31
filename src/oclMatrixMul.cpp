@@ -527,19 +527,19 @@ int runTest()
     }
 
     // compute reference solution
-    printf("Comparing results with CPU computation... \n\n");
-    float* reference = (float*) malloc(mem_size_C);
-    computeGold(reference, h_A_data, h_B_data, uiHA, uiWA, uiWB);
+    //printf("Comparing results with CPU computation... \n\n");
+    //float* reference = (float*) malloc(mem_size_C);
+    //computeGold(reference, h_A_data, h_B_data, uiHA, uiWA, uiWB);
     
     
     
 
     // check result
-    bool res = shrCompareL2fe(reference, h_C, size_C, 1.0e-6f);
-    if (res != true) 
-    {
-        //printDiff(reference, h_C, uiWC, uiHC, 100, 1.0e-5f);
-    }
+    // bool res = shrCompareL2fe(reference, h_C, size_C, 1.0e-6f);
+//     if (res != true) 
+//     {
+//         //printDiff(reference, h_C, uiWC, uiHC, 100, 1.0e-5f);
+//     }
 
     // clean up OCL resources
     ciErrNum = clReleaseMemObject(h_A);
@@ -560,7 +560,7 @@ int runTest()
     free(h_A_data);
     free(h_B_data);
     free(h_C);
-    free(reference);
+    //free(reference);
     
     //return ((shrTRUE == res) ? CL_SUCCESS : -3000);
     return 0;

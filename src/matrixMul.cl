@@ -27,7 +27,9 @@ matrixMul( __global float* C, __global float* A, __global float* B,
 	   __local float* As, __local float* Bs, int uiWA, int uiWB,
 	   __global SpoofedId *spoofing)
 {
-    //printf("A[0]:%f\n",A[0]);
+    // simply copy A-->C
+    if (1) C[(get_global_id)(0)] = A[(get_global_id)(0)];
+    else {
     // Block index
     int bx = get_group_id(0);
     int by = get_group_id(1);
@@ -90,6 +92,7 @@ matrixMul( __global float* C, __global float* A, __global float* B,
     // each thread writes one element
     C[get_global_id(1) * get_global_size(0) + get_global_id(0)] = Csub;
     //printf("Csub:%f\n",C[get_global_id(1) * get_global_size(0) + get_global_id(0)]);
+  }
 
 }
 

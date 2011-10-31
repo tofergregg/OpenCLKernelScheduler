@@ -14,12 +14,15 @@
 
 // Thread block size
 #define BLOCK_SIZE 16
+#ifndef MULTSIZE 
+  #define MULTSIZE 1
+#endif
 
 // Basic Matrix dimensions (can be amplified by command line switch)
 // (chosen as multiples of the thread block size for simplicity)
-#define WA (5 * BLOCK_SIZE) // Matrix A width
-#define HA (10 * BLOCK_SIZE) // Matrix A height
-#define WB (5 * BLOCK_SIZE) // Matrix B width
+#define WA (5 * MULTSIZE * BLOCK_SIZE) // Matrix A width
+#define HA (10 * MULTSIZE * BLOCK_SIZE) // Matrix A height
+#define WB (5 * MULTSIZE * BLOCK_SIZE) // Matrix B width
 #define HB WA  // Matrix B height
 #define WC WB  // Matrix C width 
 #define HC HA  // Matrix C height
