@@ -22,6 +22,8 @@ INCDIR		:= inc/
 ################################################################################
 # Rules and targets
 
+MULTSIZE = 1
+
 .SUFFIXES : .cl
 
 # detect OS

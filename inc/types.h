@@ -1,14 +1,13 @@
 #ifndef __TYPES__
 #define __TYPES__
 
-#define MAXARGS 5
+#define MAXARGS 7
 
 #ifdef __OPENCL_VERSION__
     // Being read on the device side: need to add cl_ prefixes
 #   define VEC( type ) \
     typedef type       cl_ ## type ; \
     typedef type ##  2 cl_ ## type ##  2 ; \
-    typedef type ##  3 cl_ ## type ##  3 ; \
     typedef type ##  4 cl_ ## type ##  4 ; \
     typedef type ##  8 cl_ ## type ##  8 ; \
     typedef type ## 16 cl_ ## type ## 16

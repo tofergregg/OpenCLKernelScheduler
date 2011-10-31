@@ -709,8 +709,12 @@ cl_program cl_CompileProgram(char * kernelPath, char * compileoptions, bool verb
 
 		free(source);
 		fclose(fp);
+           printf("deadbeef2\n");
+           printf("compile options:%s\n",compileoptions);
 
 		status = clBuildProgram(clProgramReturn, 0, NULL,compileoptions, NULL, NULL);
+		           printf("deadbeef3\n");
+
 		if(cl_errChk(status, "building program") || verbosebuild == 1)
 		{
 

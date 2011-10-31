@@ -1,4 +1,4 @@
-#pragma OPENCL EXTENSION cl_amd_printf : enable
+//#pragma OPENCL EXTENSION cl_amd_printf : enable
 /*
  * Copyright 1993-2010 NVIDIA Corporation.  All rights reserved.
  *

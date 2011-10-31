@@ -176,6 +176,7 @@ void matrixMulGPU(cl_uint ciDeviceCount, float *h_A_data, float* h_B_data, unsig
     status = cl_errChk(status, (char *)"Error allocating taskGPU buffer");
     if(status)exit(1);
     int argSetResult = 0;
+    
 //                                              taskNum  argIndex,             argSize
        argSetResult = setArg(commandQueue[i],taskGPU,0,      0,setArgGlobalFloat_kernel,sizeof(cl_mem),&d_C[i]);
        //printf("0,%d\n",argSetResult);

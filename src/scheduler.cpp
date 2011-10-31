@@ -78,12 +78,12 @@ void setUpScheduler(cl_context *context,cl_command_queue *command_queue,
     
     int quiet=0,platform=-1,device=-1;
     *context = cl_init_context(platform,device,quiet);
-    
+
     scheduler_program = cl_CompileProgram(
         (char *)"scheduler.cl",
         (char *)"-I " STRINGIFY(RUNLOC) " -I " STRINGIFY(INCLOC)
         );
-   
+
     *scheduler_kernel = clCreateKernel(
         scheduler_program, "scheduler", &status);
     status = cl_errChk(status, (char *)"Error Creating scheduler kernel");
