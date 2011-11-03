@@ -1,8 +1,8 @@
 #define BLOCK_SIZE 16
 
 void dispatch(__global SpoofedId *spoofing,
-              __local WorkItem *next) {
-    __global Task *task = next->task;
+              __local WorkItem *next,
+              __global Task *task) {
     
     __local float *localMemA = (__local float *)next;
     __local float *localMemB = localMemA + BLOCK_SIZE * BLOCK_SIZE;
