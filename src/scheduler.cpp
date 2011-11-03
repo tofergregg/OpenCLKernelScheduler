@@ -348,11 +348,21 @@ void runKernelScheduler(cl_command_queue command_queue,
         cl_event kernelEvent;
         cl_ulong beginKTime,endKTime;
         for (int kernelLoop=totalBlocks;kernelLoop>0;kernelLoop-=32) {
+        printf("Running scheduler...\n");
+
             status = clEnqueueNDRangeKernel(
                       command_queue,  scheduler_kernel, 1, 0,
                       &globalWorksize,&localWorksize,
                       0, NULL, &kernelEvent);
+            if (status) {
+                cl_errChk(status,"ERROR in Executing Scheduler Kernel");
+                exit(0);
+            }
+
             clFinish (command_queue);
+
+            printf("Starting profiling...\n");
+
             status = clGetEventProfilingInfo (kernelEvent,
                                     CL_PROFILING_COMMAND_START,
                                     sizeof(cl_ulong),
@@ -360,7 +370,7 @@ void runKernelScheduler(cl_command_queue command_queue,
                                     NULL);
             status = cl_errChk(status, (char *)"Error with profiling begin");
             
-            
+
             clGetEventProfilingInfo (kernelEvent,
                                     CL_PROFILING_COMMAND_END,
                                     sizeof(cl_ulong),
@@ -368,12 +378,11 @@ void runKernelScheduler(cl_command_queue command_queue,
                                     NULL);
             totalKernelTime+= (endKTime - beginKTime);
             status = cl_errChk(status, (char *)"Error with profiling end");
-            clReleaseEvent(kernelEvent); 
+           clReleaseEvent(kernelEvent); 
+            printf("Got here...\n");
 
         }
-        printf("Total kernel time: %f\n",totalKernelTime*1e-9);
-        cl_errChk(status,"ERROR in Executing Scheduler Kernel");
-    
+        printf("Total kernel time: %f\n",totalKernelTime*1e-9);    
 }
 
 int parseCommandline(int argc, char *argv[], char* filename,

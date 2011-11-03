@@ -239,7 +239,6 @@ void matrixMulGPU(cl_uint ciDeviceCount, float *h_A_data, float* h_B_data, unsig
 // #ifdef GPU_PROFILING
 //     }
 // #endif
-
     // launch kernel scheduler
     runKernelScheduler(commandQueue[0],schedulerKernel,cxGPUContext,
                         taskGPU,task.workgroupsLeft);
@@ -257,6 +256,7 @@ void matrixMulGPU(cl_uint ciDeviceCount, float *h_A_data, float* h_B_data, unsig
     {
 		clFinish(commandQueue[i]);
 	}
+printf("Done with scheduler.\n");
 
 #ifdef GPU_PROFILING
 

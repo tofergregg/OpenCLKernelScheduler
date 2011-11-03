@@ -37,11 +37,12 @@ __kernel void scheduler(__global Task *queue,
                         __local unsigned int *sharedMem,
                         __global SpoofedId *spoofing) {//,
                         //__global unsigned int *logInfo) {
-        
+    printf((const char *)"Inside scheduler.\n");
+
     size_t globalId = get_global_id(0);
     size_t workgroups = get_num_groups(0);
     size_t localId = get_local_id(0);
-    
+
     WorkItem workItems[MAXTASKS];
     if (localId == 0) {
         sharedMem[0] = getWork(queue,
@@ -119,7 +120,6 @@ unsigned int getWork(__global Task *queue,
         task->workgroupsLeft -= workgroupsGrabbed;
         numberOfTasksToExecute -= workgroupsGrabbed;
     }
-    
     // release spin-lock
     atomic_xchg(lock,0);
     
