@@ -358,6 +358,7 @@ void runKernelScheduler(cl_command_queue command_queue,
                 cl_errChk(status,"ERROR in Executing Scheduler Kernel");
                 exit(0);
             }
+        printf("Past scheduler...\n");
 
             clFinish (command_queue);
 

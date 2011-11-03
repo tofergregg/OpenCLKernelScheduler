@@ -37,7 +37,7 @@ __kernel void scheduler(__global Task *queue,
                         __local unsigned int *sharedMem,
                         __global SpoofedId *spoofing) {//,
                         //__global unsigned int *logInfo) {
-    printf((const char *)"Inside scheduler.\n");
+    //printf("Inside scheduler, get_global_id(0):%d\n",get_global_id(0));
 
     size_t globalId = get_global_id(0);
     size_t workgroups = get_num_groups(0);
@@ -51,14 +51,15 @@ __kernel void scheduler(__global Task *queue,
                                workItems,
                                lock);
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    barrier(CLK_LOCAL_MEM_FENCE); // this line leads to frozen kernel (unless other line is in code)
     numberOfTasksToExecute -= sharedMem[0];
+    barrier(CLK_LOCAL_MEM_FENCE);
     for (unsigned int i=0; i < numberOfTasksToExecute; i++) {
         __local WorkItem *next = (__local WorkItem *)sharedMem;
         if (localId == 0)
             *next = workItems[i];
         
-        barrier(CLK_LOCAL_MEM_FENCE);
+        barrier(CLK_LOCAL_MEM_FENCE); // this line leads to ShouldNotReachHere()
         
         spoofing[globalId].localId[0] = localId % next->task->xThreads;
         spoofing[globalId].localId[1] = localId / next->task->xThreads;
