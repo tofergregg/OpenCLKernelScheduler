@@ -7,6 +7,13 @@
 #include "scheduler.h"
 #include "types.h"
 
+// g++ on linux #defines linux to 1. Since we don't use that anywhere, but do
+// need "linux" as part of a path, we can undefine it here.
+
+#ifdef linux
+#undef linux
+#endif
+
 //cl_context context=NULL;
 //cl_command_queue command_queue = NULL;
 
